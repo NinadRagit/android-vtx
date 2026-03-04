@@ -38,6 +38,7 @@ import android.widget.PopupMenu;
 import android.widget.SeekBar;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.constraintlayout.widget.ConstraintLayout;
@@ -62,6 +63,9 @@ import com.openipc.videonative.VideoPlayer;
 import com.openipc.wfbngrtl8812.WfbNGStats;
 import com.openipc.wfbngrtl8812.WfbNGStatsChanged;
 import com.openipc.wfbngrtl8812.WfbNgLink;
+import android.Manifest;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
@@ -111,6 +115,9 @@ public class VideoActivity extends AppCompatActivity implements IVideoParamsChan
     private ConstraintLayout constraintLayout;
     private ConstraintSet constraintSet;
     private WfbNgLink wfbLink;
+    private CameraStreamer cameraStreamer;
+    private boolean isVtxMode = false;
+    private static final int CAMERA_PERMISSION_REQUEST_CODE = 100;
 
     private static final String PREF_DRONE_USERNAME = "drone_username";
     private static final String PREF_DRONE_PASSWORD = "drone_password";
@@ -169,7 +176,7 @@ public class VideoActivity extends AppCompatActivity implements IVideoParamsChan
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
             startActivity(intent);
             finish();
-            System.exit(0); // Ensure the app is fully restarted
+            // Removed System.exit(0) to allow clean OS-level process recycling
         }
     }
 
@@ -252,6 +259,7 @@ public class VideoActivity extends AppCompatActivity implements IVideoParamsChan
         initDefaultOptions();
 
         // Video Player(s) Setup
+        // This now handles both standard and VTX modes internally
         initializeVideoPlayers();
 
         // VR-specific SeekBars (only if VR mode)
@@ -293,6 +301,17 @@ public class VideoActivity extends AppCompatActivity implements IVideoParamsChan
         wifiManager = (WifiManager) getSystemService(WIFI_SERVICE);
     }
 
+    public boolean getVtxSetting() {
+        return getSharedPreferences("general", Context.MODE_PRIVATE).getBoolean("vtx-mode", false);
+    }
+
+    public void setVtxSetting(boolean v) {
+        SharedPreferences prefs = getSharedPreferences("general", Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = prefs.edit();
+        editor.putBoolean("vtx-mode", v);
+        editor.commit();
+    }
+
     // ----------------------------------------------------------------------------
     // WFB-NG SETUP
     // ----------------------------------------------------------------------------
@@ -321,12 +340,44 @@ public class VideoActivity extends AppCompatActivity implements IVideoParamsChan
         videoPlayer.setIVideoParamsChanged(this);
 
         isVRMode = getVRSetting();
+        isVtxMode = getVtxSetting();
 
-        if (isVRMode) {
+        if (isVtxMode) {
+            setupVtxVideoPlayers();
+        } else if (isVRMode) {
             setupVRVideoPlayers();
         } else {
             setupStandardVideoPlayer();
         }
+    }
+
+    private void setupVtxVideoPlayers() {
+        binding.surfaceViewLeft.setVisibility(View.GONE);
+        binding.surfaceViewRight.setVisibility(View.GONE);
+        binding.mainVideo.setVisibility(View.VISIBLE);
+        
+        if (cameraStreamer == null) {
+            cameraStreamer = new CameraStreamer(this);
+        }
+
+        binding.mainVideo.getHolder().addCallback(new android.view.SurfaceHolder.Callback() {
+            @Override
+            public void surfaceCreated(@NonNull android.view.SurfaceHolder holder) {
+                if (isVtxMode && checkCameraPermission()) {
+                    cameraStreamer.startStreaming(holder.getSurface());
+                }
+            }
+
+            @Override
+            public void surfaceChanged(@NonNull android.view.SurfaceHolder holder, int format, int width, int height) {}
+
+            @Override
+            public void surfaceDestroyed(@NonNull android.view.SurfaceHolder holder) {
+                if (cameraStreamer != null) {
+                    cameraStreamer.stopStreaming();
+                }
+            }
+        });
     }
 
     /**
@@ -571,7 +622,42 @@ public class VideoActivity extends AppCompatActivity implements IVideoParamsChan
         // Help submenu
         setupHelpSubMenu(popup);
 
+        // VTX submenu
+        setupVTXSubMenu(popup);
+
         popup.show();
+    }
+
+    private void setupVTXSubMenu(PopupMenu popup) {
+        SubMenu vtxMenu = popup.getMenu().addSubMenu("VTX mode");
+        MenuItem vtxItem = vtxMenu.add(getVtxSetting() ? "On" : "Off");
+        vtxItem.setOnMenuItemClickListener(item -> {
+            isVtxMode = !getVtxSetting();
+            setVtxSetting(isVtxMode);
+            vtxItem.setTitle(isVtxMode ? "Off" : "On");
+            resetApp();
+            return false;
+        });
+    }
+
+    private boolean checkCameraPermission() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, CAMERA_PERMISSION_REQUEST_CODE);
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == CAMERA_PERMISSION_REQUEST_CODE) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                if (isVtxMode) resetApp();
+            } else {
+                Toast.makeText(this, "Camera permission is required for VTX mode", Toast.LENGTH_LONG).show();
+            }
+        }
     }
 
     /**

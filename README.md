@@ -1,16 +1,31 @@
-# PixelPilot
+# Android VTX
 > [!IMPORTANT]
-> Warning, performance will heavily depend on your device's processing power.
+> This app targets ultra-low latency video transmission over the air.
 >
 > Use this app at your own risk.
 
-## Introduction
-```
-PixelPilot – the Android FPV app that leaves “loading…” screens in the dust.
-Plug in, fly live with sub‑atomic latency, flex real‑time signal stats, and marvel at the open‑source unicorn
-where (brace yourself) most things actually work.
-```
+## 🚀 Project Status: VTX Mode Alpha
+The app now supports **VTX mode**: it can capture camera video, encode it using the phone's hardware H.264 encoder, and send it to the internal `wfb-ng` air link.
 
+### Features
+- **Hardware Encoding**: Low-latency H.264 (720p @ 60fps) via `MediaCodec`.
+- **MTU Fragmentation**: Auto-fragments video NALs to 1450 bytes for high-reliability radio transmission.
+- **Internal Bridge**: Streams directly into `wfb-ng` (Port 8001).
+
+---
+
+## 🔧 Enabling VTX Mode
+1. Open the app on your rooted Android phone.
+2. Tap the **Settings icon** (top left).
+3. Scroll down to the **"VTX mode"** menu and tap **"On"**.
+4. The app will restart and prompt for camera permissions.
+5. Your camera's preview will appear, and the stream will be broadcast via your RTL8812AU USB WiFi card!
+
+---
+
+## 📚 Documentation
+- [Implementation Plan](file:///C:/Users/ninad/.gemini/antigravity/brain/3aaf5243-f283-4b3c-a156-45c54fadc267/vtx_implementation_plan.md)
+- [Progress Tracker](PROGRESS_TRACKER.md)
 - [FPVue_android](https://github.com/gehee/FPVue_android): basic and unique work to combine all components into a single application by [Gee He](https://github.com/gehee).
 - [devourer](https://github.com/openipc/devourer): userspace rtl8812au driver initially created by [buldo](https://github.com/buldo) and converted to C by [josephnef](https://github.com/josephnef).
 - [LiveVideo10ms](https://github.com/Consti10/LiveVideo10ms): excellent video decoder from [Consti10](https://github.com/Consti10) converted into a module.

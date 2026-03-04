@@ -23,7 +23,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "PixelPilot"
+rootProject.name = "android-vtx"
 include(":app")
 include(":app:videonative")
 include(":app:wfbngrtl8812")
