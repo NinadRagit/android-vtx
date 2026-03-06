@@ -53,8 +53,14 @@ std::string generate_random_string(size_t length) {
     return result;
 }
 
-WfbngLink::WfbngLink(JNIEnv *env, jobject context)
-        : current_fd(-1), adaptive_link_enabled(true), adaptive_tx_power(30) {
+WfbngLink::WfbngLink(JNIEnv *env, jobject context, bool vtxMode)
+        : current_fd(-1), adaptive_link_enabled(true), adaptive_tx_power(30), vtxMode_(vtxMode) {
+    if (vtxMode) {
+        keyPath = "/data/user/0/com.openipc.pixelpilot/files/drone.key";
+    } else {
+        keyPath = "/data/user/0/com.openipc.pixelpilot/files/gs.key";
+    }
+    __android_log_print(ANDROID_LOG_INFO, TAG, "Using key: %s (vtxMode=%d)", keyPath.c_str(), vtxMode);
     initAgg();
     Logger_t log;
     wifi_driver = std::make_unique<WiFiDriver>(log);
@@ -72,15 +78,17 @@ void WfbngLink::initAgg() {
     video_aggregator = std::make_unique<AggregatorUDPv4>(client_addr, 5600, keyPath, epoch, video_channel_id_f, 0);
 
     int mavlink_client_port = 14550;
-    uint8_t mavlink_radio_port = 0x10;
+    // In VTX (drone) mode, receive mavlink from GS on port 0x90; in RX (GS) mode, from drone on 0x10
+    uint8_t mavlink_radio_port = vtxMode_ ? 0x90 : 0x10;
     uint32_t mavlink_channel_id_f = (link_id << 8) + mavlink_radio_port;
     mavlink_channel_id_be = htobe32(mavlink_channel_id_f);
 
     mavlink_aggregator =
         std::make_unique<AggregatorUDPv4>(client_addr, mavlink_client_port, keyPath, epoch, mavlink_channel_id_f, 0);
 
-    int udp_client_port = 8000;
-    uint8_t udp_radio_port = wfb_rx_port;
+    int udp_client_port = 5800;
+    // In VTX (drone) mode, receive tunnel from GS on port 0xa0; in RX (GS) mode, from drone on 0x20
+    uint8_t udp_radio_port = vtxMode_ ? 0xa0 : wfb_rx_port;
     uint32_t udp_channel_id_f = (link_id << 8) + udp_radio_port;
     udp_channel_id_be = htobe32(udp_channel_id_f);
 
@@ -92,6 +100,8 @@ int WfbngLink::run(JNIEnv *env, jobject context, jint wifiChannel, jint bw, jint
     int r;
     libusb_context *ctx = NULL;
     txFrame = std::make_shared<TxFrame>();
+    tunnelTxFrame = std::make_shared<TxFrame>();
+    telemetryTxFrame = std::make_shared<TxFrame>();
 
     r = libusb_set_option(NULL, LIBUSB_OPTION_NO_DEVICE_DISCOVERY);
     r = libusb_init(&ctx);
@@ -211,12 +221,22 @@ int WfbngLink::run(JNIEnv *env, jobject context, jint wifiChannel, jint bw, jint
             args->vht_mode = false;
             args->short_gi = false;
             args->bandwidth = 20;
-            args->k = 1;
-            args->n = 5;
-            args->radio_port = wfb_tx_port;
+
+            if (vtxMode_) {
+                // VTX mode: standard video FEC and radio port
+                args->k = 8;
+                args->n = 12;
+                args->radio_port = 0;
+            } else {
+                // RX mode: back-channel TX with minimal FEC
+                args->k = 1;
+                args->n = 5;
+                args->radio_port = wfb_tx_port;
+            }
 
             __android_log_print(
-                ANDROID_LOG_ERROR, TAG, "radio link ID %d, radio PORT %d", args->link_id, args->radio_port);
+                ANDROID_LOG_INFO, TAG, "TX: link_id=%d radio_port=%d fec=%d/%d vtx=%d",
+                args->link_id, args->radio_port, args->k, args->n, vtxMode_);
 
             Rtl8812aDevice *current_device = rtl_devices.at(fd).get();
             if (!usb_tx_thread) {
@@ -228,7 +248,64 @@ int WfbngLink::run(JNIEnv *env, jobject context, jint wifiChannel, jint bw, jint
                 });
             }
 
-            if (adaptive_link_enabled) {
+            // In VTX mode, start a second TX thread for tunnel on radio_port=0x20
+            if (vtxMode_ && !usb_tunnel_tx_thread) {
+                std::shared_ptr<TxArgs> tunnelArgs = std::make_shared<TxArgs>();
+                tunnelArgs->udp_port = 5801;
+                tunnelArgs->link_id = link_id;
+                tunnelArgs->keypair = keyPath;
+                tunnelArgs->stbc = stbc_enabled;
+                tunnelArgs->ldpc = ldpc_enabled;
+                tunnelArgs->mcs_index = 0;
+                tunnelArgs->vht_mode = false;
+                tunnelArgs->short_gi = false;
+                tunnelArgs->bandwidth = 20;
+                tunnelArgs->k = 8;
+                tunnelArgs->n = 12;
+                tunnelArgs->radio_port = 0x20; // tunnel TX port
+
+                __android_log_print(
+                    ANDROID_LOG_INFO, TAG, "Tunnel TX: link_id=%d radio_port=%d fec=%d/%d",
+                    tunnelArgs->link_id, tunnelArgs->radio_port, tunnelArgs->k, tunnelArgs->n);
+
+                init_thread(usb_tunnel_tx_thread, [&]() {
+                    return std::make_unique<std::thread>([this, current_device, tunnelArgs] {
+                        tunnelTxFrame->run(current_device, tunnelArgs.get());
+                        __android_log_print(ANDROID_LOG_DEBUG, TAG, "tunnel_tx thread should terminate");
+                    });
+                });
+            }
+
+            // In VTX mode, start a third TX thread for telemetry on radio_port=0x10
+            if (vtxMode_ && !usb_telemetry_tx_thread) {
+                std::shared_ptr<TxArgs> telemetryArgs = std::make_shared<TxArgs>();
+                telemetryArgs->udp_port = 14551;
+                telemetryArgs->link_id = link_id;
+                telemetryArgs->keypair = keyPath;
+                telemetryArgs->stbc = stbc_enabled;
+                telemetryArgs->ldpc = ldpc_enabled;
+                telemetryArgs->mcs_index = 0;
+                telemetryArgs->vht_mode = false;
+                telemetryArgs->short_gi = false;
+                telemetryArgs->bandwidth = 20;
+                telemetryArgs->k = 1;
+                telemetryArgs->n = 2;
+                telemetryArgs->radio_port = 0x10; // telemetry TX port
+
+                __android_log_print(
+                    ANDROID_LOG_INFO, TAG, "Telemetry TX: link_id=%d radio_port=%d fec=%d/%d",
+                    telemetryArgs->link_id, telemetryArgs->radio_port, telemetryArgs->k, telemetryArgs->n);
+
+                init_thread(usb_telemetry_tx_thread, [&]() {
+                    return std::make_unique<std::thread>([this, current_device, telemetryArgs] {
+                        telemetryTxFrame->run(current_device, telemetryArgs.get());
+                        __android_log_print(ANDROID_LOG_DEBUG, TAG, "telemetry_tx thread should terminate");
+                    });
+                });
+            }
+
+            // Adaptive link only in RX mode — in VTX mode there's no GS to receive telemetry from
+            if (!vtxMode_ && adaptive_link_enabled) {
                 stop_adaptive_link();
                 start_link_quality_thread(fd);
             }
@@ -248,7 +325,11 @@ int WfbngLink::run(JNIEnv *env, jobject context, jint wifiChannel, jint bw, jint
             dev->should_stop = true;
         }
         txFrame->stop();
+        tunnelTxFrame->stop();
+        telemetryTxFrame->stop();
 
+        destroy_thread(usb_telemetry_tx_thread);
+        destroy_thread(usb_tunnel_tx_thread);
         destroy_thread(usb_tx_thread);
         destroy_thread(usb_event_thread);
         stop_adaptive_link();
@@ -261,7 +342,11 @@ int WfbngLink::run(JNIEnv *env, jobject context, jint wifiChannel, jint bw, jint
         dev->should_stop = true;
     }
     txFrame->stop();
+    tunnelTxFrame->stop();
+    telemetryTxFrame->stop();
 
+    destroy_thread(usb_telemetry_tx_thread);
+    destroy_thread(usb_tunnel_tx_thread);
     destroy_thread(usb_tx_thread);
     destroy_thread(usb_event_thread);
     stop_adaptive_link();
@@ -321,8 +406,9 @@ inline std::list<int> toList(JNIEnv *env, jobject list) {
 }
 extern "C" JNIEXPORT jlong JNICALL Java_com_openipc_wfbngrtl8812_WfbNgLink_nativeInitialize(JNIEnv *env,
                                                                                             jclass clazz,
-                                                                                            jobject context) {
-    auto *p = new WfbngLink(env, context);
+                                                                                            jobject context,
+                                                                                            jboolean vtxMode) {
+    auto *p = new WfbngLink(env, context, static_cast<bool>(vtxMode));
     return jptr(p);
 }
 

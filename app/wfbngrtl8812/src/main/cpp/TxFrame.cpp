@@ -35,6 +35,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -501,11 +502,15 @@ void UsbTransmitter::injectPacket(const uint8_t *buf, size_t size) {
     std::memcpy(buffer.get() + radiotapHeaderLen_, ieeeHdr, sizeof(ieeeHdr));
     std::memcpy(buffer.get() + radiotapHeaderLen_ + sizeof(ieeeHdr), buf, size);
 
-    bool result = static_cast<bool>(rtlDevice_->send_packet(buffer.get(), totalSize));
-
-#ifdef __ANDROID__
-//    __android_log_print(ANDROID_LOG_DEBUG, TAG, "send_packet res:%d", result);
-#endif
+    // Retry logic matching OpenIPC's -J 10 -E 5000 (10 retries, 5ms delay)
+    bool result = false;
+    for (int attempt = 0; attempt <= TX_INJECT_MAX_RETRIES; ++attempt) {
+        result = static_cast<bool>(rtlDevice_->send_packet(buffer.get(), totalSize));
+        if (result) break;
+        if (attempt < TX_INJECT_MAX_RETRIES) {
+            std::this_thread::sleep_for(std::chrono::microseconds(TX_INJECT_RETRY_DELAY_US));
+        }
+    }
 
     uint64_t key = (static_cast<uint64_t>(currentOutput_) << 8) | 0xff;
     antennaStat_[key].logLatency(get_time_us() - startUs, result, static_cast<uint32_t>(size));
@@ -604,6 +609,22 @@ void TxFrame::dataSource(
     uint32_t rxqOverflowCount = 0;
     uint64_t logSendTs = 0;
     uint64_t fecCloseTs = (fecTimeout > 0) ? get_time_ms() + fecTimeout : 0;
+
+    // Bitrate cap: 8Mbps matching OpenIPC -C 8000
+    static constexpr uint64_t BITRATE_CAP_BPS = 8000000ULL;
+    static constexpr uint64_t BITRATE_WINDOW_MS = 100;
+    uint64_t bitrateWindowStart = get_time_ms();
+    uint64_t bitrateWindowBytes = 0;
+
+    // Send session key immediately before any data, and repeat aggressively
+    // during the first few seconds so the GS can establish the session quickly.
+    static const int STARTUP_SESSION_ANNOUNCE_MS = 100;
+    static const int STARTUP_DURATION_MS = 3000;
+    uint64_t startupTs = get_time_ms();
+    transmitter->sendSessionKey();
+#ifdef __ANDROID__
+    __android_log_print(ANDROID_LOG_INFO, TAG, "TxFrame: initial session key sent");
+#endif
 
     // Stats counters
     uint32_t countPFecTimeouts = 0;
@@ -773,11 +794,31 @@ void TxFrame::dataSource(
                     uint64_t nowTs = get_time_ms();
                     if (nowTs >= sessionKeyAnnounceTs) {
                         transmitter->sendSessionKey();
-                        sessionKeyAnnounceTs = nowTs + SESSION_KEY_ANNOUNCE_MSEC;
+                        // Use faster announce rate during startup for quick GS sync
+                        int interval = ((nowTs - startupTs) < STARTUP_DURATION_MS)
+                                       ? STARTUP_SESSION_ANNOUNCE_MS
+                                       : SESSION_KEY_ANNOUNCE_MSEC;
+                        sessionKeyAnnounceTs = nowTs + interval;
                     }
 
                     // Forward packet
                     transmitter->sendPacket(buf, static_cast<size_t>(rsize), 0);
+
+                    // Bitrate cap enforcement
+                    bitrateWindowBytes += static_cast<uint64_t>(rsize);
+                    uint64_t windowElapsed = nowTs - bitrateWindowStart;
+                    if (windowElapsed >= BITRATE_WINDOW_MS) {
+                        bitrateWindowStart = nowTs;
+                        bitrateWindowBytes = 0;
+                    } else {
+                        uint64_t maxBytesInWindow = (BITRATE_CAP_BPS / 8) * BITRATE_WINDOW_MS / 1000;
+                        if (bitrateWindowBytes >= maxBytesInWindow && windowElapsed < BITRATE_WINDOW_MS) {
+                            uint64_t sleepMs = BITRATE_WINDOW_MS - windowElapsed;
+                            std::this_thread::sleep_for(std::chrono::milliseconds(sleepMs));
+                            bitrateWindowStart = get_time_ms();
+                            bitrateWindowBytes = 0;
+                        }
+                    }
 
                     // If we've hit a log boundary inside the same poll, break to flush stats
                     if (nowTs >= logSendTs) {
@@ -804,7 +845,7 @@ void TxFrame::run(Rtl8812aDevice *rtlDevice, TxArgs *arg) {
     // Radiotap header preparation
     std::unique_ptr<uint8_t[]> rtHeader;
     size_t rtHeaderLen = 0;
-    uint8_t frameType = FRAME_TYPE_RTS;
+    uint8_t frameType = FRAME_TYPE_DATA;
 
     // Construct the appropriate radiotap header (HT vs. VHT)
     if (!arg->vht_mode) {

@@ -128,6 +128,10 @@ public class CameraStreamer {
                 public void onOutputBufferAvailable(@NonNull MediaCodec codec, int index, @NonNull MediaCodec.BufferInfo info) {
                     ByteBuffer outputBuffer = codec.getOutputBuffer(index);
                     if (outputBuffer != null && info.size > 0) {
+                        // Log I-frame occurrences to verify KEY_I_FRAME_INTERVAL behavior
+                        if ((info.flags & MediaCodec.BUFFER_FLAG_KEY_FRAME) != 0) {
+                            Log.d(TAG, "I-frame: size=" + info.size + " pts=" + info.presentationTimeUs);
+                        }
                         byte[] outData = new byte[info.size];
                         outputBuffer.get(outData);
                         sendOverUDP(outData);
@@ -152,17 +156,30 @@ public class CameraStreamer {
         }
     }
 
-    private static final int MAX_UDP_PAYLOAD = 1450;
+    // wfb-ng MAX_PAYLOAD_SIZE is ~3993 bytes. Each UDP packet sent to wfb_tx
+    // becomes one wfb-ng data unit, reconstructed intact on the GS side.
+    // Do NOT fragment here — wfb_tx handles FEC/fragmentation internally.
+    // NAL units larger than this limit must be split at NAL boundaries.
+    private static final int MAX_WFB_PAYLOAD = 3993;
 
     private void sendOverUDP(byte[] data) {
         if (udpSocket == null || data == null) return;
         try {
-            int offset = 0;
-            while (offset < data.length) {
-                int chunkSize = Math.min(MAX_UDP_PAYLOAD, data.length - offset);
-                DatagramPacket packet = new DatagramPacket(data, offset, chunkSize, destinationAddress, DESTINATION_PORT);
+            if (data.length <= MAX_WFB_PAYLOAD) {
+                // Common case: NAL unit fits in one wfb-ng packet
+                DatagramPacket packet = new DatagramPacket(data, 0, data.length, destinationAddress, DESTINATION_PORT);
                 udpSocket.send(packet);
-                offset += chunkSize;
+            } else {
+                // Rare case: very large NAL unit (e.g. IDR frame).
+                // Split into chunks. wfb-ng will deliver each as a separate
+                // UDP packet on the GS, so the receiver must handle reassembly.
+                int offset = 0;
+                while (offset < data.length) {
+                    int chunkSize = Math.min(MAX_WFB_PAYLOAD, data.length - offset);
+                    DatagramPacket packet = new DatagramPacket(data, offset, chunkSize, destinationAddress, DESTINATION_PORT);
+                    udpSocket.send(packet);
+                    offset += chunkSize;
+                }
             }
         } catch (IOException e) {
             Log.e(TAG, "Failed to send UDP packet", e);

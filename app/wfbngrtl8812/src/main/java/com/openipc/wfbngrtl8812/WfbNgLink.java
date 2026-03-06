@@ -38,7 +38,7 @@ public class WfbNgLink implements WfbNGStatsChanged {
     private WfbNGStatsChanged statsChanged;
 
     // Native method declarations.
-    public static native long nativeInitialize(Context context);
+    public static native long nativeInitialize(Context context, boolean vtxMode);
     public static native void nativeRun(long nativeInstance, Context context, int wifiChannel, int bandWidth, int fd);
     public static native void nativeStop(long nativeInstance, Context context, int fd);
     public static native void nativeRefreshKey(long nativeInstance);
@@ -50,9 +50,9 @@ public class WfbNgLink implements WfbNGStatsChanged {
     public static native void nativeSetUseLdpc(long nativeInstance, int use);
     public static native void nativeSetUseStbc(long nativeInstance, int use);
 
-    public WfbNgLink(final AppCompatActivity parent) {
+    public WfbNgLink(final AppCompatActivity parent, boolean vtxMode) {
         this.context = parent;
-        nativeWfbngLink = nativeInitialize(context);
+        nativeWfbngLink = nativeInitialize(context, vtxMode);
         timer = new Timer();
         timer.schedule(new TimerTask() {
             @Override

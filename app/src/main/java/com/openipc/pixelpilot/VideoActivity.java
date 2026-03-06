@@ -92,6 +92,7 @@ public class VideoActivity extends AppCompatActivity implements IVideoParamsChan
     private static final String TAG = "pixelpilot";
     private static final int PICK_KEY_REQUEST_CODE = 1;
     private static final int PICK_DVR_REQUEST_CODE = 2;
+    private static final int PICK_DRONE_KEY_REQUEST_CODE = 3;
     private static WifiManager wifiManager;
     final Handler handler = new Handler(Looper.getMainLooper());
     final Runnable runnable = new Runnable() {
@@ -280,7 +281,7 @@ public class VideoActivity extends AppCompatActivity implements IVideoParamsChan
         // Battery Receiver
         setupBatteryReceiver();
 
-        // wfbNg VPN Service
+        // wfbNg VPN Service — needed in both modes for IP tunnel
         startVpnService();
     }
 
@@ -323,7 +324,9 @@ public class VideoActivity extends AppCompatActivity implements IVideoParamsChan
     private void initializeWfbNg() {
         setDefaultGsKey();
         copyGSKey();
-        wfbLink = new WfbNgLink(this);
+        setDefaultDroneKey();
+        copyDroneKey();
+        wfbLink = new WfbNgLink(this, getVtxSetting());
         wfbLink.SetWfbNGStatsChanged(this);
         wfbLinkManager = new WfbLinkManager(this, binding, wfbLink);
     }
@@ -756,6 +759,14 @@ public class VideoActivity extends AppCompatActivity implements IVideoParamsChan
             intent.addCategory(Intent.CATEGORY_OPENABLE);
             intent.setType("*/*");
             startActivityForResult(intent, PICK_KEY_REQUEST_CODE);
+            return true;
+        });
+        MenuItem droneKeyBtn = wfb.add("drone.key");
+        droneKeyBtn.setOnMenuItemClickListener(item -> {
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.setType("*/*");
+            startActivityForResult(intent, PICK_DRONE_KEY_REQUEST_CODE);
             return true;
         });
     }
@@ -1297,6 +1308,20 @@ public class VideoActivity extends AppCompatActivity implements IVideoParamsChan
                     Log.e(TAG, "Failed to import gs.key from " + uri);
                 }
             }
+        } else if (requestCode == PICK_DRONE_KEY_REQUEST_CODE && resultCode == RESULT_OK) {
+            if (data != null && data.getData() != null) {
+                Uri uri = data.getData();
+                Log.d(TAG, "Selected drone.key file " + uri);
+                try {
+                    InputStream inputStream = getContentResolver().openInputStream(uri);
+                    setDroneKey(inputStream);
+                    copyDroneKey();
+                    wfbLinkManager.refreshKey();
+                    inputStream.close();
+                } catch (IOException e) {
+                    Log.e(TAG, "Failed to import drone.key from " + uri);
+                }
+            }
         } else if (requestCode == PICK_DVR_REQUEST_CODE && resultCode == RESULT_OK) {
             // The result data contains a URI for the document or directory that
             // the user selected.
@@ -1347,8 +1372,31 @@ public class VideoActivity extends AppCompatActivity implements IVideoParamsChan
         }
     }
 
+    public void setDefaultDroneKey() {
+        // Always re-import both keys from assets to ensure they are from the same keypair.
+        // This fixes upgrades where stale gs.key in prefs doesn't match the new drone.key.
+        try {
+            Log.d(TAG, "Importing default drone.key from assets...");
+            InputStream inputStream = getAssets().open("drone.key");
+            setDroneKey(inputStream);
+            inputStream.close();
+
+            Log.d(TAG, "Importing default gs.key from assets...");
+            InputStream gsStream = getAssets().open("gs.key");
+            setGsKey(gsStream);
+            gsStream.close();
+        } catch (IOException e) {
+            Log.e(TAG, "Failed to import default keys");
+        }
+    }
+
     public byte[] getGsKey() {
         String pref = getSharedPreferences("general", Context.MODE_PRIVATE).getString("gs.key", "");
+        return Base64.decode(pref, Base64.DEFAULT);
+    }
+
+    public byte[] getDroneKey() {
+        String pref = getSharedPreferences("general", Context.MODE_PRIVATE).getString("drone.key", "");
         return Base64.decode(pref, Base64.DEFAULT);
     }
 
@@ -1362,6 +1410,19 @@ public class VideoActivity extends AppCompatActivity implements IVideoParamsChan
         SharedPreferences prefs = getSharedPreferences("general", Context.MODE_PRIVATE);
         SharedPreferences.Editor editor = prefs.edit();
         editor.putString("gs.key", Base64.encodeToString(result.toByteArray(), Base64.DEFAULT));
+        editor.apply();
+    }
+
+    public void setDroneKey(InputStream inputStream) throws IOException {
+        ByteArrayOutputStream result = new ByteArrayOutputStream();
+        byte[] buffer = new byte[1024];
+        int length;
+        while ((length = inputStream.read(buffer)) != -1) {
+            result.write(buffer, 0, length);
+        }
+        SharedPreferences prefs = getSharedPreferences("general", Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = prefs.edit();
+        editor.putString("drone.key", Base64.encodeToString(result.toByteArray(), Base64.DEFAULT));
         editor.apply();
     }
 
@@ -1448,7 +1509,9 @@ public class VideoActivity extends AppCompatActivity implements IVideoParamsChan
 
         osdManager.restoreOSDConfig();
 
-        startVpnService();
+        if (!isVtxMode) {
+            startVpnService();
+        }
 
         super.onResume();
     }
@@ -1614,6 +1677,27 @@ public class VideoActivity extends AppCompatActivity implements IVideoParamsChan
             out.write(keyBytes, 0, keyBytes.length);
         } catch (IOException e) {
             Log.e(TAG, "Failed to copy asset", e);
+        } finally {
+            if (out != null) {
+                try {
+                    out.close();
+                } catch (IOException e) {
+                    // NOOP
+                }
+            }
+        }
+    }
+
+    private void copyDroneKey() {
+        File file = new File(getApplicationContext().getFilesDir(), "drone.key");
+        OutputStream out = null;
+        try {
+            byte[] keyBytes = getDroneKey();
+            Log.d(TAG, "Using drone.key:" + bytesToHex(keyBytes) + "; Copying to" + file.getAbsolutePath());
+            out = new FileOutputStream(file);
+            out.write(keyBytes, 0, keyBytes.length);
+        } catch (IOException e) {
+            Log.e(TAG, "Failed to copy drone.key", e);
         } finally {
             if (out != null) {
                 try {

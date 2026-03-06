@@ -28,7 +28,8 @@ class WfbngLink {
     int fec_recovered_to_3 = 24;
     int fec_recovered_to_2 = 14;
     int fec_recovered_to_1 = 8;
-    WfbngLink(JNIEnv *env, jobject context);
+    WfbngLink(JNIEnv *env, jobject context, bool vtxMode);
+    bool vtxMode_{false};
 
     int run(JNIEnv *env, jobject androidContext, jint wifiChannel, jint bw, jint fd);
 
@@ -91,7 +92,7 @@ class WfbngLink {
         }
     }
 
-    const char *keyPath = "/data/user/0/com.openipc.pixelpilot/files/gs.key";
+    std::string keyPath;
     std::recursive_mutex thread_mutex;
     std::unique_ptr<WiFiDriver> wifi_driver;
     std::shared_ptr<TxFrame> txFrame;
@@ -102,6 +103,10 @@ class WfbngLink {
     Logger_t log;
     std::unique_ptr<std::thread> usb_event_thread{nullptr};
     std::unique_ptr<std::thread> usb_tx_thread{nullptr};
+    std::unique_ptr<std::thread> usb_tunnel_tx_thread{nullptr};
+    std::unique_ptr<std::thread> usb_telemetry_tx_thread{nullptr};
+    std::shared_ptr<TxFrame> tunnelTxFrame;
+    std::shared_ptr<TxFrame> telemetryTxFrame;
     uint32_t link_id{7669206};
     SignalQualityCalculator rssi_calculator;
 };

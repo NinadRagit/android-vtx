@@ -13,6 +13,8 @@ extern "C" {
 #include <algorithm>
 #include <arpa/inet.h>
 #include <cerrno>
+#include <chrono>
+#include <thread>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -200,6 +202,10 @@ class TxAntennaItem {
 
 /// Map: key = (antennaIndex << 8) | 0xff, value = TxAntennaItem
 using TxAntennaStat = std::unordered_map<uint64_t, TxAntennaItem>;
+
+// TX inject retry parameters (matching OpenIPC -J 10 -E 5000)
+static constexpr int TX_INJECT_MAX_RETRIES = 10;
+static constexpr int TX_INJECT_RETRY_DELAY_US = 5000; // 5ms
 
 //-------------------------------------------------------------
 /**
