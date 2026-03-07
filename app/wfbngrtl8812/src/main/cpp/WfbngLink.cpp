@@ -217,7 +217,7 @@ int WfbngLink::run(JNIEnv *env, jobject context, jint wifiChannel, jint bw, jint
             args->keypair = keyPath;
             args->stbc = stbc_enabled;
             args->ldpc = ldpc_enabled;
-            args->mcs_index = 0;
+            args->mcs_index = 2; // Increased to 2 (19.5 Mbps) for 720p120 stability
             args->vht_mode = false;
             args->short_gi = false;
             args->bandwidth = 20;
@@ -303,6 +303,9 @@ int WfbngLink::run(JNIEnv *env, jobject context, jint wifiChannel, jint bw, jint
                     });
                 });
             }
+
+            // Always set initial static TX power to avoid adapter overheating at full default power
+            rtl_devices.at(fd)->SetTxPower(adaptive_tx_power);
 
             // Adaptive link only in RX mode — in VTX mode there's no GS to receive telemetry from
             if (!vtxMode_ && adaptive_link_enabled) {
@@ -598,7 +601,6 @@ void WfbngLink::start_link_quality_thread(int fd) {
     };
 
     init_thread(link_quality_thread, [=]() { return std::make_unique<std::thread>(thread_func); });
-    rtl_devices.at(fd)->SetTxPower(adaptive_tx_power);
 }
 
 extern "C" JNIEXPORT void JNICALL Java_com_openipc_wfbngrtl8812_WfbNgLink_nativeSetAdaptiveLinkEnabled(

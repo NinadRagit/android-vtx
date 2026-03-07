@@ -5,6 +5,8 @@ project("WfbngRtl8812")
 
 include_directories(include)
 
+# include(devourer_patch.cmake) - No longer needed as driver is vendored.
+
 add_library(wfb-ng STATIC
         ${CMAKE_SOURCE_DIR}/wfb-ng/src/zfex.c
         ${CMAKE_SOURCE_DIR}/wfb-ng/src/zfex.h

@@ -14,6 +14,8 @@ import android.media.MediaFormat;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.util.Log;
+import android.util.Range;
+import android.util.Size;
 import android.view.Surface;
 
 import androidx.annotation.NonNull;
@@ -32,8 +34,8 @@ import java.util.Collections;
 public class CameraStreamer {
     private static final String TAG = "CameraStreamer";
     private static final String MIME_TYPE = MediaFormat.MIMETYPE_VIDEO_AVC; // H.264
-    private static final int FRAME_RATE = 60;
-    private static final int BITRATE = 4000000; // 4 Mbps
+    private static final int FRAME_RATE = 120;
+    private static final int BITRATE = 4000000; // 4 Mbps for 720p120
     private static final int WIDTH = 1280;
     private static final int HEIGHT = 720;
 
@@ -119,6 +121,8 @@ public class CameraStreamer {
             encoderSurface = encoder.createInputSurface();
 
             encoder.setCallback(new MediaCodec.Callback() {
+                private byte[] spsPpsCache = null;
+
                 @Override
                 public void onInputBufferAvailable(@NonNull MediaCodec codec, int index) {
                     // Not used for Surface input
@@ -128,12 +132,21 @@ public class CameraStreamer {
                 public void onOutputBufferAvailable(@NonNull MediaCodec codec, int index, @NonNull MediaCodec.BufferInfo info) {
                     ByteBuffer outputBuffer = codec.getOutputBuffer(index);
                     if (outputBuffer != null && info.size > 0) {
-                        // Log I-frame occurrences to verify KEY_I_FRAME_INTERVAL behavior
-                        if ((info.flags & MediaCodec.BUFFER_FLAG_KEY_FRAME) != 0) {
-                            Log.d(TAG, "I-frame: size=" + info.size + " pts=" + info.presentationTimeUs);
-                        }
                         byte[] outData = new byte[info.size];
                         outputBuffer.get(outData);
+
+                        if ((info.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) {
+                            spsPpsCache = outData;
+                        }
+
+                        // Log I-frame occurrences to verify KEY_I_FRAME_INTERVAL behavior
+                        if ((info.flags & MediaCodec.BUFFER_FLAG_KEY_FRAME) != 0) {
+                            Log.i(TAG, "I-frame: size=" + info.size + " pts=" + info.presentationTimeUs);
+                            if (spsPpsCache != null) {
+                                sendOverUDP(spsPpsCache);
+                            }
+                        }
+                        
                         sendOverUDP(outData);
                     }
                     codec.releaseOutputBuffer(index, false);
@@ -227,14 +240,25 @@ public class CameraStreamer {
             builder.addTarget(previewSurface);
             builder.addTarget(encoderSurface);
 
-            cameraDevice.createCaptureSession(java.util.Arrays.asList(previewSurface, encoderSurface),
+            // Use ConstrainedHighSpeedCaptureSession for 120/240 FPS
+            cameraDevice.createConstrainedHighSpeedCaptureSession(java.util.Arrays.asList(previewSurface, encoderSurface),
                 new CameraCaptureSession.StateCallback() {
                     @Override
                     public void onConfigured(@NonNull CameraCaptureSession session) {
                         captureSession = session;
                         try {
+                            builder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(FRAME_RATE, FRAME_RATE));
                             builder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO);
-                            captureSession.setRepeatingRequest(builder.build(), null, backgroundHandler);
+                            
+                            // High-speed sessions require a repeating burst list
+                            if (session instanceof android.hardware.camera2.CameraConstrainedHighSpeedCaptureSession) {
+                                android.hardware.camera2.CameraConstrainedHighSpeedCaptureSession hsSession = 
+                                    (android.hardware.camera2.CameraConstrainedHighSpeedCaptureSession) session;
+                                captureSession.setRepeatingBurst(hsSession.createHighSpeedRequestList(builder.build()), null, backgroundHandler);
+                                Log.i(TAG, "High-speed repeating burst started at " + FRAME_RATE + " FPS");
+                            } else {
+                                captureSession.setRepeatingRequest(builder.build(), null, backgroundHandler);
+                            }
                         } catch (CameraAccessException e) {
                             Log.e(TAG, "Capture Request failed", e);
                         }
@@ -268,4 +292,6 @@ public class CameraStreamer {
             }
         }
     }
+
+
 }
