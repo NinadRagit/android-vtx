@@ -36,6 +36,12 @@ public class OSDManager {
         this.context = context;
     }
 
+    /**
+     * Locks or unlocks the OSD elements on the screen, preventing or allowing the user
+     * to drag them around for customization.
+     *
+     * @param isLocked True to lock elements in place, false to allow dragging.
+     */
     public void lockOSD(Boolean isLocked) {
         for (int i = 0; i < listOSDItems.size(); i++) {
             listOSDItems.get(i).layout.setMovable(!isLocked);
@@ -60,6 +66,10 @@ public class OSDManager {
         editor.apply();
     }
 
+    /**
+     * Initializes all OSD text and image elements, linking them to their respective UI views.
+     * Also starts a background task (CountDownTimer) for the flight time tracker.
+     */
     public void setUp() {
         mCountDownTimer = new CountDownTimer(60 * 60 * 1000, 1000) {
             @Override
@@ -132,6 +142,12 @@ public class OSDManager {
         return (float) (a2 * 180.0 / 3.141592653589793);
     }
 
+    /**
+     * Renders incoming Mavlink telemetry data onto the screen by updating the various
+     * OSD text views and images (e.g. Battery, Altitude, GPS status).
+     *
+     * @param data The parsed MavlinkData object representing the latest Flight Controller state.
+     */
     public void render(MavlinkData data) {
         float voltage = (float) (data.telemetryBattery / 1000.0);
         binding.tvBat.setText(formatFloat(voltage, "V", ""));

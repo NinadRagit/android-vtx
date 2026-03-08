@@ -56,11 +56,6 @@ import androidx.constraintlayout.widget.ConstraintSet;
 import androidx.core.content.FileProvider;
 import androidx.documentfile.provider.DocumentFile;
 
-import com.github.mikephil.charting.charts.PieChart;
-import com.github.mikephil.charting.data.PieData;
-import com.github.mikephil.charting.data.PieDataSet;
-import com.github.mikephil.charting.data.PieEntry;
-import com.github.mikephil.charting.formatter.PercentFormatter;
 import com.openipc.mavlink.MavlinkData;
 import com.openipc.mavlink.MavlinkNative;
 import com.openipc.mavlink.MavlinkUpdate;
@@ -464,38 +459,6 @@ public class VideoActivity extends AppCompatActivity implements
         if (cameraConfig == null) cameraConfig = CameraConfig.load(this);
         cameraStreamer.stopStreaming();
         cameraStreamer.startStreaming(binding.mainVideo.getHolder().getSurface(), cameraConfig, binding.btnPreviewToggle.isChecked());
-    }
-
-    private void restartStreamingWithProfile(CameraConfig config) {
-        cameraConfig = config;
-        restartStreaming();
-    }
-
-    private boolean validateParams(String cid, Size res, int fps) {
-        List<Size> supportedSizes = cameraHelper.getSupportedSizes(cid);
-        if (!supportedSizes.contains(res)) return false;
-        
-        List<Integer> supportedFps = cameraHelper.getSupportedFps(cid, res);
-        return supportedFps.contains(fps);
-    }
-
-    private void resetToSafeDefaults(String cid) {
-        List<Size> sizes = cameraHelper.getSupportedSizes(cid);
-        Size defaultRes = new Size(1280, 720);
-        if (!sizes.contains(defaultRes) && !sizes.isEmpty()) {
-            defaultRes = sizes.get(0);
-        }
-        
-        List<Integer> fpsList = cameraHelper.getSupportedFps(cid, defaultRes);
-        int defaultFps = 60;
-        if (!fpsList.contains(defaultFps) && !fpsList.isEmpty()) {
-            defaultFps = fpsList.get(0);
-        }
-
-        SharedPreferences.Editor editor = getSharedPreferences("general", MODE_PRIVATE).edit();
-        editor.putString("camera_res", defaultRes.getWidth() + "x" + defaultRes.getHeight());
-        editor.putInt("camera_fps", defaultFps);
-        editor.apply();
     }
 
     private boolean checkCameraPermission() {
@@ -1354,22 +1317,6 @@ public class VideoActivity extends AppCompatActivity implements
         wfbLinkManager.stopAdapters();
         wfbLinkManager.setBandwidth(bandwidth);
         wfbLinkManager.startAdapters();
-    }
-
-    private void updateViewRatio(int viewId, int videoW, int videoH) {
-        if (videoW == 0 || videoH == 0) {
-            return;
-        }
-
-        View view = findViewById(viewId);
-        if (view != null) {
-            ConstraintLayout.LayoutParams params =
-                    (ConstraintLayout.LayoutParams) view.getLayoutParams();
-            params.dimensionRatio = videoW + ":" + videoH;
-            runOnUiThread(() -> view.setLayoutParams(params));
-        } else {
-            Log.w(TAG, "View with ID " + viewId + " not found.");
-        }
     }
 
     @Override

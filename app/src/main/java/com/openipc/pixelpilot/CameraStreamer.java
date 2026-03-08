@@ -59,6 +59,17 @@ public class CameraStreamer {
 
     // ── Public API ────────────────────────────────────────────────────────────
 
+    /**
+     * Bootstraps the entire video pipeline.
+     * 1. Starts a background thread.
+     * 2. Opens a UDP datagram socket to loopback:5600.
+     * 3. Configures the MediaCodec hardware encoder.
+     * 4. Requests control of the physical Camera2 device.
+     *
+     * @param previewSurface The UI Surface to draw the camera preview to (often null in headless mode).
+     * @param config The imported CameraConfig (.vtxcam) determining all stream parameters.
+     * @param enablePreview Whether to route frames to the previewSurface (if false, a Dummy Surface is used).
+     */
     public synchronized void startStreaming(Surface previewSurface, CameraConfig config, boolean enablePreview) {
         if (enablePreview && (previewSurface == null || !previewSurface.isValid())) {
             Log.e(TAG, "Cannot start: invalid preview surface provided for preview enabled mode");
@@ -145,6 +156,10 @@ public class CameraStreamer {
 
     // ── Encoder ───────────────────────────────────────────────────────────
 
+    /**
+     * Configures the Android hardware MediaCodec for low-latency H.264 / H.265 encoding.
+     * Starts the encoder asynchronously, routing NAL units to sendOverUDP() upon output.
+     */
     private void setupEncoder() {
         CameraConfig cfg = currentConfig;
         String mime = "h265".equalsIgnoreCase(cfg.encoder.codec)
@@ -306,6 +321,10 @@ public class CameraStreamer {
         }
     }
 
+    /**
+     * Builds the Camera2 Capture Request. Routes raw YUV frames to both the encoderSurface
+     * and the effectivePreviewSurface (which is either the true UI surface or the Dummy workaround).
+     */
     private void createCaptureSession(Surface previewSurface, boolean enablePreview) {
         if (encoderSurface == null) { Log.e(TAG, "Encoder surface null"); return; }
         try {
@@ -358,46 +377,26 @@ public class CameraStreamer {
 
             List<Surface> surfaces = Arrays.asList(effectivePreviewSurface, encoderSurface);
 
-            if (false && cfg.requiresHighSpeedSession()) { // Disable HighSpeed session to avoid 8-frame Burst batching (33ms latency)
-                cameraDevice.createConstrainedHighSpeedCaptureSession(surfaces,
-                    new CameraCaptureSession.StateCallback() {
-                        @Override
-                        public void onConfigured(@NonNull CameraCaptureSession session) {
-                            captureSession = session;
-                            try {
-                                android.hardware.camera2.CameraConstrainedHighSpeedCaptureSession hs =
-                                        (android.hardware.camera2.CameraConstrainedHighSpeedCaptureSession) session;
-                                session.setRepeatingBurst(hs.createHighSpeedRequestList(builder.build()),
-                                        null, backgroundHandler);
-                                Log.i(TAG, "HS session started @ " + cfg.camera.fps + " FPS");
-                            } catch (CameraAccessException e) {
-                                Log.e(TAG, "HS capture request failed", e);
-                            }
+            // We strictly use standard standard capture sessions because ConstrainedHighSpeedCaptureSession
+            // forces batching of requests which inherently destroys low-latency pipelines.
+            cameraDevice.createCaptureSession(surfaces,
+                new CameraCaptureSession.StateCallback() {
+                    @Override
+                    public void onConfigured(@NonNull CameraCaptureSession session) {
+                        captureSession = session;
+                        try {
+                            session.setRepeatingRequest(builder.build(), null, backgroundHandler);
+                            Log.i(TAG, "Standard session started @ " + cfg.camera.fps + " FPS");
+                        } catch (CameraAccessException e) {
+                            Log.e(TAG, "Capture request failed", e);
                         }
-                        @Override
-                        public void onConfigureFailed(@NonNull CameraCaptureSession session) {
-                            Log.e(TAG, "HS session configure failed");
-                        }
-                    }, backgroundHandler);
-            } else {
-                cameraDevice.createCaptureSession(surfaces,
-                    new CameraCaptureSession.StateCallback() {
-                        @Override
-                        public void onConfigured(@NonNull CameraCaptureSession session) {
-                            captureSession = session;
-                            try {
-                                session.setRepeatingRequest(builder.build(), null, backgroundHandler);
-                                Log.i(TAG, "Standard session started @ " + cfg.camera.fps + " FPS");
-                            } catch (CameraAccessException e) {
-                                Log.e(TAG, "Capture request failed", e);
-                            }
-                        }
-                        @Override
-                        public void onConfigureFailed(@NonNull CameraCaptureSession session) {
-                            Log.e(TAG, "Standard session configure failed");
-                        }
-                    }, backgroundHandler);
-            }
+                    }
+                    @Override
+                    public void onConfigureFailed(@NonNull CameraCaptureSession session) {
+                        Log.e(TAG, "Standard session configure failed");
+                    }
+                }, backgroundHandler);
+
         } catch (CameraAccessException e) {
             Log.e(TAG, "Capture session creation failed", e);
         }
