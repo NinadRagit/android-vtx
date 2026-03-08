@@ -75,6 +75,10 @@ void *listen(int mavlink_port) {
     inet_pton(AF_INET, "0.0.0.0", &(addr.sin_addr));
     addr.sin_port = htons(mavlink_port);
 
+    int opt = 1;
+    setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt));
+
     if (bind(fd, (struct sockaddr *) (&addr), sizeof(addr)) != 0) {
         __android_log_print(ANDROID_LOG_ERROR, TAG, "Unable to bind MavLink port %d: %s",
                             mavlink_port, strerror(errno));
@@ -376,7 +380,7 @@ extern "C"
 JNIEXPORT void JNICALL
 Java_com_openipc_mavlink_MavlinkNative_nativeStart(JNIEnv *env, jclass clazz, jobject context) {
     auto threadFunction = []() {
-        listen(14550);
+        listen(14552);
     };
     std::thread mavlink_thread(threadFunction);
     mavlink_thread.detach();

@@ -29,6 +29,13 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:usesCleartextTraffic="true"
         android:supportsRtl="true">
+        <!-- Headless Orchestrator Service -->
+        <service
+            android:name=".VtxService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice|camera|dataSync" />
+
         <service
             android:name=".WfbNgVpnService"
             android:label="Wfb-Ng VPN Service"

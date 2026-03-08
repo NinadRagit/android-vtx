@@ -1,0 +1,436 @@
+Reusing configuration cache.
+> Task :app:wfbngrtl8812:preBuild UP-TO-DATE
+> Task :app:preBuild UP-TO-DATE
+> Task :app:mavlink:preBuild UP-TO-DATE
+> Task :app:wfbngrtl8812:preDebugBuild UP-TO-DATE
+> Task :app:mavlink:preDebugBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :app:wfbngrtl8812:prepareLintJarForPublish UP-TO-DATE
+> Task :app:mavlink:prepareLintJarForPublish UP-TO-DATE
+> Task :app:generateDebugResValues UP-TO-DATE
+> Task :app:mavlink:generateDebugResValues UP-TO-DATE
+> Task :app:javaPreCompileDebug UP-TO-DATE
+> Task :app:mavlink:writeDebugAarMetadata UP-TO-DATE
+> Task :app:wfbngrtl8812:writeDebugAarMetadata UP-TO-DATE
+> Task :app:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :app:mavlink:processDebugManifest UP-TO-DATE
+> Task :app:wfbngrtl8812:processDebugManifest UP-TO-DATE
+> Task :app:mavlink:javaPreCompileDebug UP-TO-DATE
+> Task :app:mergeDebugShaders UP-TO-DATE
+> Task :app:mavlink:mergeDebugShaders UP-TO-DATE
+> Task :app:wfbngrtl8812:processDebugJavaRes NO-SOURCE
+> Task :app:mergeDebugStartupProfile UP-TO-DATE
+> Task :app:compileDebugShaders NO-SOURCE
+> Task :app:mergeDebugJniLibFolders UP-TO-DATE
+> Task :app:mavlink:compileDebugShaders NO-SOURCE
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :app:mavlink:generateDebugAssets UP-TO-DATE
+> Task :app:mavlink:processDebugJavaRes NO-SOURCE
+> Task :app:processDebugJavaRes NO-SOURCE
+> Task :app:desugarDebugFileDependencies UP-TO-DATE
+> Task :app:wfbngrtl8812:javaPreCompileDebug UP-TO-DATE
+> Task :app:wfbngrtl8812:mergeDebugShaders UP-TO-DATE
+> Task :app:mavlink:extractDeepLinksDebug UP-TO-DATE
+> Task :app:wfbngrtl8812:generateDebugResValues UP-TO-DATE
+> Task :app:mavlink:generateDebugResources UP-TO-DATE
+> Task :app:writeDebugAppMetadata UP-TO-DATE
+> Task :app:validateSigningDebug UP-TO-DATE
+> Task :app:writeDebugSigningConfigVersions UP-TO-DATE
+> Task :app:mavlink:extractDeepLinksForAarDebug UP-TO-DATE
+> Task :app:wfbngrtl8812:compileDebugShaders NO-SOURCE
+> Task :app:mavlink:prepareDebugArtProfile UP-TO-DATE
+> Task :app:extractDeepLinksDebug UP-TO-DATE
+> Task :app:wfbngrtl8812:mergeDebugJniLibFolders UP-TO-DATE
+> Task :app:wfbngrtl8812:generateDebugAssets UP-TO-DATE
+> Task :app:generateDebugResources UP-TO-DATE
+> Task :app:checkDebugDuplicateClasses UP-TO-DATE
+> Task :app:wfbngrtl8812:prepareDebugArtProfile UP-TO-DATE
+> Task :app:mavlink:packageDebugAssets UP-TO-DATE
+> Task :app:wfbngrtl8812:packageDebugAssets UP-TO-DATE
+> Task :app:mavlink:mergeDebugJniLibFolders UP-TO-DATE
+> Task :app:wfbngrtl8812:mergeDebugJavaResource UP-TO-DATE
+> Task :app:packageDebugResources UP-TO-DATE
+> Task :app:wfbngrtl8812:extractDeepLinksForAarDebug UP-TO-DATE
+> Task :app:dataBindingMergeDependencyArtifactsDebug UP-TO-DATE
+> Task :app:mavlink:mergeDebugJavaResource UP-TO-DATE
+> Task :app:mavlink:packageDebugResources UP-TO-DATE
+> Task :app:wfbngrtl8812:generateDebugResources UP-TO-DATE
+> Task :app:checkDebugAarMetadata UP-TO-DATE
+> Task :app:wfbngrtl8812:extractDeepLinksDebug UP-TO-DATE
+> Task :app:mavlink:compileDebugLibraryResources UP-TO-DATE
+> Task :app:parseDebugLocalResources UP-TO-DATE
+> Task :app:mavlink:parseDebugLocalResources UP-TO-DATE
+> Task :app:mergeDebugJavaResource UP-TO-DATE
+> Task :app:mavlink:generateDebugRFile UP-TO-DATE
+> Task :app:mergeDebugAssets UP-TO-DATE
+> Task :app:wfbngrtl8812:packageDebugResources UP-TO-DATE
+> Task :app:wfbngrtl8812:configureCMakeDebug[arm64-v8a]
+> Task :app:wfbngrtl8812:parseDebugLocalResources UP-TO-DATE
+> Task :app:mergeExtDexDebug UP-TO-DATE
+> Task :app:compressDebugAssets UP-TO-DATE
+> Task :app:mavlink:configureCMakeDebug[arm64-v8a]
+> Task :app:wfbngrtl8812:configureCMakeDebug[armeabi-v7a]
+> Task :app:mavlink:extractDebugAnnotations UP-TO-DATE
+> Task :app:mavlink:configureCMakeDebug[armeabi-v7a]
+> Task :app:wfbngrtl8812:compileDebugLibraryResources UP-TO-DATE
+> Task :app:wfbngrtl8812:generateDebugRFile UP-TO-DATE
+> Task :app:mavlink:compileDebugJavaWithJavac UP-TO-DATE
+> Task :app:mapDebugSourceSetPaths UP-TO-DATE
+> Task :app:mergeDebugResources UP-TO-DATE
+> Task :app:processDebugMainManifest UP-TO-DATE
+> Task :app:mavlink:bundleLibRuntimeToDirDebug UP-TO-DATE
+> Task :app:mavlink:bundleLibRuntimeToJarDebug UP-TO-DATE
+> Task :app:mavlink:syncDebugLibJars UP-TO-DATE
+> Task :app:processDebugManifest UP-TO-DATE
+> Task :app:mavlink:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :app:mavlink:mergeDebugGeneratedProguardFiles UP-TO-DATE
+> Task :app:mavlink:mergeDebugConsumerProguardFiles UP-TO-DATE
+> Task :app:processDebugManifestForPackage UP-TO-DATE
+> Task :app:wfbngrtl8812:compileDebugJavaWithJavac UP-TO-DATE
+> Task :app:wfbngrtl8812:extractDebugAnnotations UP-TO-DATE
+> Task :app:wfbngrtl8812:bundleLibRuntimeToDirDebug UP-TO-DATE
+> Task :app:wfbngrtl8812:bundleLibRuntimeToJarDebug UP-TO-DATE
+> Task :app:wfbngrtl8812:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :app:wfbngrtl8812:syncDebugLibJars UP-TO-DATE
+> Task :app:wfbngrtl8812:mergeDebugGeneratedProguardFiles UP-TO-DATE
+> Task :app:dataBindingGenBaseClassesDebug UP-TO-DATE
+> Task :app:wfbngrtl8812:mergeDebugConsumerProguardFiles UP-TO-DATE
+> Task :app:mergeLibDexDebug UP-TO-DATE
+> Task :app:wfbngrtl8812:buildCMakeDebug[arm64-v8a]
+> Task :app:processDebugResources UP-TO-DATE
+> Task :app:mavlink:buildCMakeDebug[arm64-v8a]
+> Task :app:mavlink:buildCMakeDebug[armeabi-v7a]
+> Task :app:mavlink:mergeDebugNativeLibs UP-TO-DATE
+> Task :app:mavlink:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :app:mavlink:stripDebugDebugSymbols UP-TO-DATE
+> Task :app:mavlink:copyDebugJniLibsProjectAndLocalJars UP-TO-DATE
+> Task :app:mavlink:bundleDebugAar UP-TO-DATE
+> Task :app:mavlink:assembleDebug UP-TO-DATE
+> Task :app:wfbngrtl8812:buildCMakeDebug[armeabi-v7a]
+> Task :app:wfbngrtl8812:mergeDebugNativeLibs UP-TO-DATE
+> Task :app:wfbngrtl8812:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :app:wfbngrtl8812:stripDebugDebugSymbols UP-TO-DATE
+> Task :app:mergeDebugNativeLibs UP-TO-DATE
+> Task :app:wfbngrtl8812:copyDebugJniLibsProjectAndLocalJars UP-TO-DATE
+> Task :app:stripDebugDebugSymbols UP-TO-DATE
+> Task :app:wfbngrtl8812:bundleDebugAar UP-TO-DATE
+> Task :app:wfbngrtl8812:assembleDebug UP-TO-DATE
+
+> Task :app:compileDebugJavaWithJavac FAILED
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:340: error: <identifier> expected
+                binding.distanceSeekBar.setVisibility(View.VISIBLE);
+                                                     ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:340: error: <identifier> expected
+                binding.distanceSeekBar.setVisibility(View.VISIBLE);
+                                                                  ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:341: error: <identifier> expected
+                handler.postDelayed(() -> {
+                                   ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:341: error: illegal start of type
+                handler.postDelayed(() -> {
+                                    ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:346: error: illegal start of type
+                }, 3000);
+                 ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:346: error: <identifier> expected
+                }, 3000);
+                  ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:348: error: class, interface, enum, or record expected
+            return false;
+            ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:349: error: class, interface, enum, or record expected
+        });
+        ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:350: error: class, interface, enum, or record expected
+    }
+    ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:366: error: class, interface, enum, or record expected
+        osdManager.setUp();
+        ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:367: error: class, interface, enum, or record expected
+    }
+    ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:378: error: class, interface, enum, or record expected
+        binding.btnSettings.setOnClickListener(this::showSettingsMenu);
+        ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:379: error: class, interface, enum, or record expected
+    }
+    ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:388: error: class, interface, enum, or record expected
+        setupHelpSubMenu(popup);
+        ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:390: error: class, interface, enum, or record expected
+        popup.show();
+        ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:391: error: class, interface, enum, or record expected
+    }
+    ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:395: error: class, interface, enum, or record expected
+        MenuItem vtxItem = vtxMenu.add(getVtxSetting() ? "On" : "Off");
+        ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:396: error: class, interface, enum, or record expected
+        vtxItem.setOnMenuItemClickListener(item -> {
+        ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:398: error: class, interface, enum, or record expected
+            setVtxSetting(isVtxMode);
+            ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:399: error: class, interface, enum, or record expected
+            vtxItem.setTitle(isVtxMode ? "Off" : "On");
+            ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:400: error: class, interface, enum, or record expected
+            resetApp();
+            ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:401: error: class, interface, enum, or record expected
+            return false;
+            ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:402: error: class, interface, enum, or record expected
+        });
+        ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:403: error: class, interface, enum, or record expected
+    }
+    ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:408: error: class, interface, enum, or record expected
+            return false;
+            ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:409: error: class, interface, enum, or record expected
+        }
+        ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:411: error: class, interface, enum, or record expected
+    }
+    ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:414: error: class, interface, enum, or record expected
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+           ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:414: error: class, interface, enum, or record expected
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+                                                                     ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:414: error: class, interface, enum, or record expected
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+                                                                                                    ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:416: error: class, interface, enum, or record expected
+        if (requestCode == CAMERA_PERMISSION_REQUEST_CODE) {
+        ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:419: error: class, interface, enum, or record expected
+            } else {
+            ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:421: error: class, interface, enum, or record expected
+            }
+            ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:430: error: class, interface, enum, or record expected
+        MenuItem vrItem = vrMenu.add(getVRSetting() ? "On" : "Off");
+        ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:431: error: class, interface, enum, or record expected
+        vrItem.setOnMenuItemClickListener(item -> {
+        ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:433: error: class, interface, enum, or record expected
+            setVRSetting(isVRMode);
+            ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:434: error: class, interface, enum, or record expected
+            vrItem.setTitle(isVRMode ? "Off" : "On");
+            ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:435: error: class, interface, enum, or record expected
+            item.setShowAsAction(MenuItem.SHOW_AS_ACTION_COLLAPSE_ACTION_VIEW);
+            ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:436: error: class, interface, enum, or record expected
+            item.setActionView(new View(this));
+            ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:437: error: class, interface, enum, or record expected
+            resetApp();
+            ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:438: error: class, interface, enum, or record expected
+            return false;
+            ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:439: error: class, interface, enum, or record expected
+        });
+        ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:440: error: class, interface, enum, or record expected
+    }
+    ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:447: error: class, interface, enum, or record expected
+        int channelPref = getChannel(this);
+        ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:450: error: class, interface, enum, or record expected
+        MenuItem headerItem = chnMenu.add("Current: " + channelPref);
+        ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:451: error: class, interface, enum, or record expected
+        headerItem.setEnabled(false); // Makes it unclickable and grayed out like a label
+        ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:453: error: class, interface, enum, or record expected
+        String[] channels = getResources().getStringArray(R.array.channels);
+        ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:454: error: class, interface, enum, or record expected
+        for (String chnStr : channels) {
+        ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:457: error: class, interface, enum, or record expected
+                return true;
+                ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:458: error: class, interface, enum, or record expected
+            });
+            ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:459: error: class, interface, enum, or record expected
+        }
+        ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:467: error: class, interface, enum, or record expected
+        int bandwidthPref = getBandwidth(this);
+        ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:470: error: class, interface, enum, or record expected
+        MenuItem headerItem = bwMenu.add("Current: " + bandwidthPref);
+        ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:471: error: class, interface, enum, or record expected
+        headerItem.setEnabled(false); // Visually looks like a header, but unclickable
+        ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:473: error: class, interface, enum, or record expected
+        String[] bws = getResources().getStringArray(R.array.bandwidths);
+        ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:474: error: class, interface, enum, or record expected
+        for (String bwStr : bws) {
+        ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:477: error: class, interface, enum, or record expected
+                return true;
+                ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:478: error: class, interface, enum, or record expected
+            });
+            ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:479: error: class, interface, enum, or record expected
+        }
+        ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:487: error: class, interface, enum, or record expected
+        MenuItem lock = osd.add(osdManager.getTitle());
+        ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:488: error: class, interface, enum, or record expected
+        lock.setOnMenuItemClickListener(item -> {
+        ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:490: error: class, interface, enum, or record expected
+            lock.setTitle(osdManager.getTitle());
+            ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:491: error: class, interface, enum, or record expected
+            item.setShowAsAction(MenuItem.SHOW_AS_ACTION_COLLAPSE_ACTION_VIEW);
+            ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:492: error: class, interface, enum, or record expected
+            item.setActionView(new View(this));
+            ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:493: error: class, interface, enum, or record expected
+            return false;
+            ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:494: error: class, interface, enum, or record expected
+        });
+        ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:496: error: class, interface, enum, or record expected
+        for (OSDElement element : osdManager.listOSDItems) {
+        ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:498: error: class, interface, enum, or record expected
+            itm.setCheckable(true);
+            ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:499: error: class, interface, enum, or record expected
+            itm.setChecked(osdManager.isElementEnabled(element));
+            ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:500: error: class, interface, enum, or record expected
+            itm.setOnMenuItemClickListener(menuItem -> {
+            ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:502: error: class, interface, enum, or record expected
+                osdManager.onOSDItemCheckChanged(element, menuItem.isChecked());
+                ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:503: error: class, interface, enum, or record expected
+                menuItem.setShowAsAction(MenuItem.SHOW_AS_ACTION_COLLAPSE_ACTION_VIEW);
+                ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:504: error: class, interface, enum, or record expected
+                menuItem.setActionView(new View(this));
+                ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:505: error: class, interface, enum, or record expected
+                return false;
+                ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:506: error: class, interface, enum, or record expected
+            });
+            ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:507: error: class, interface, enum, or record expected
+        }
+        ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:515: error: class, interface, enum, or record expected
+        MenuItem keyBtn = wfb.add("gs.key");
+        ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:516: error: class, interface, enum, or record expected
+        keyBtn.setOnMenuItemClickListener(item -> {
+        ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:518: error: class, interface, enum, or record expected
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:519: error: class, interface, enum, or record expected
+            intent.setType("*/*");
+            ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:520: error: class, interface, enum, or record expected
+            startActivityForResult(intent, PICK_KEY_REQUEST_CODE);
+            ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:521: error: class, interface, enum, or record expected
+            return true;
+            ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:522: error: class, interface, enum, or record expected
+        });
+        ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:523: error: class, interface, enum, or record expected
+        MenuItem droneKeyBtn = wfb.add("drone.key");
+        ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:524: error: class, interface, enum, or record expected
+        droneKeyBtn.setOnMenuItemClickListener(item -> {
+        ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:526: error: class, interface, enum, or record expected
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:527: error: class, interface, enum, or record expected
+            intent.setType("*/*");
+            ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:528: error: class, interface, enum, or record expected
+            startActivityForResult(intent, PICK_DRONE_KEY_REQUEST_CODE);
+            ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:529: error: class, interface, enum, or record expected
+            return true;
+            ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:530: error: class, interface, enum, or record expected
+        });
+        ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:531: error: class, interface, enum, or record expected
+    }
+    ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:542: error: class, interface, enum, or record expected
+        SharedPreferences prefs = getSharedPreferences("general", MODE_PRIVATE);
+        ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:543: error: class, interface, enum, or record expected
+        boolean adaptiveEnabled = prefs.getBoolean("adaptive_link_enabled", true);
+        ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:544: error: class, interface, enum, or record expected
+        int adaptiveTxPower = prefs.getInt("adaptive_tx_power", 20);
+        ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:547: error: class, interface, enum, or record expected
+        MenuItem adaptiveEnable = adaptiveMenu.add("Enable");
+        ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:548: error: class, interface, enum, or record expected
+        adaptiveEnable.setCheckable(true);
+        ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:549: error: class, interface, enum, or record expected
+        adaptiveEnable.setChecked(adaptiveEnabled);
+        ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:550: error: class, interface, enum, or record expected
+        adaptiveEnable.setOnMenuItemClickListener(item -> {
+        ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:552: error: class, interface, enum, or record expected
+            item.setChecked(newState);
+            ^
+/home/ninad/workspaces/android_studio_ws/android-vtx/app/src/main/java/com/openipc/pixelpilot/VideoActivity.java:553: error: class, interface, enum, or record expected
+            SharedPreferences.Editor editor = getSharedPreferences("general", MODE_PRIVATE).edit();
+            ^
+100 errors
+only showing the first 100 errors, of 629 total; use -Xmaxerrs if you would like to see more
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:compileDebugJavaWithJavac'.
+> Compilation failed; see the compiler error output for details.
+
+* Try:
+> Run with --info option to get more log output.
+> Run with --scan to get full insights.
+
+BUILD FAILED in 408ms
+100 actionable tasks: 9 executed, 91 up-to-date
+Configuration cache entry reused.

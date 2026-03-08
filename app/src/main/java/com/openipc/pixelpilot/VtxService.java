@@ -48,6 +48,8 @@ public class VtxService extends Service implements WfbNGStatsChanged {
 
     private WfbNgLink wfbLink;
     private WfbLinkManager wfbLinkManager;
+
+    private TelemetryRouter telemetryRouter;
     private BroadcastReceiver batteryReceiver;
     
     // Core Engine Components
@@ -72,6 +74,9 @@ public class VtxService extends Service implements WfbNGStatsChanged {
         wfbLinkManager = new WfbLinkManager(this, null, wfbLink); 
         
         applyDefaultWfbOptions();
+
+        // 2a. Initialize Telemetry Router (USB -> UDP)
+        telemetryRouter = new TelemetryRouter(this);
 
         // 3. Register Receivers
         setupBatteryReceiver();
@@ -108,12 +113,19 @@ public class VtxService extends Service implements WfbNGStatsChanged {
         wfbLinkManager.refreshAdapters();
         wfbLinkManager.startAdapters();
 
+        if (telemetryRouter != null) {
+            telemetryRouter.start();
+        }
+
         return START_STICKY;
     }
 
     @Override
     public void onDestroy() {
-        Log.i(TAG, "VtxService Destroyed - Tearing down Headless Engine");
+        Log.d(TAG, "VtxService shutting down.");
+        if (telemetryRouter != null) {
+            telemetryRouter.stop();
+        }
         if (cameraStreamer != null) {
             cameraStreamer.stopStreaming();
         }
