@@ -13,6 +13,8 @@ public class MavlinkNative {
 
     public static native void nativeStop(Context context);
 
+    public static native void nativeSendNamedValueFloat(String name, float value);
+
     // TODO: Use message queue from cpp for performance#
     // This initiates a 'call back' for the IVideoParams
     public static native <T extends MavlinkUpdate> void nativeCallBack(T t);

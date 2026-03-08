@@ -79,7 +79,7 @@ public class CameraStreamer {
         isStreaming = true;
         currentConfig = config;
 
-        Log.i(TAG, "Starting: " + config.getSummary() + (enablePreview ? " with preview" : " without preview"));
+        Log.i(TAG, "startStreaming: " + config.getSummary() + (enablePreview ? " with preview" : " without preview"));
         startBackgroundThread();
         setupUDP();
         setupEncoder();
@@ -232,6 +232,7 @@ public class CameraStreamer {
             private byte[] spsPpsCache = null;
             private final ArrayList<Integer> latencyHistory = new ArrayList<>(30);
             private int frameCount = 0;
+            private long ptsOffsetUs = 0;
 
             @Override
             public void onInputBufferAvailable(@NonNull MediaCodec codec, int index) {}
@@ -239,17 +240,26 @@ public class CameraStreamer {
             @Override
             public void onOutputBufferAvailable(@NonNull MediaCodec codec, int index,
                                                 @NonNull MediaCodec.BufferInfo info) {
-                // Calculate hardware encoding latency: current time vs time camera sensor finished the frame
+                // Calculate calibrated latency: current time vs (camera PTS + detected offset)
                 long currentRealtimeUs = android.os.SystemClock.elapsedRealtimeNanos() / 1000;
-                int latencyMs = (int) ((currentRealtimeUs - info.presentationTimeUs) / 1000);
+                if (ptsOffsetUs == 0) {
+                    long rawDeltaUs = currentRealtimeUs - info.presentationTimeUs;
+                    if (Math.abs(rawDeltaUs) > 10_000_000) { // > 10 seconds difference?
+                        ptsOffsetUs = rawDeltaUs; // Fallback to relative measurement
+                        Log.i(TAG, "Clock epoch mismatch detected. Calibrating offset: " + ptsOffsetUs);
+                    } else {
+                        ptsOffsetUs = 0; // Use raw delta directly (same epoch)
+                    }
+                    // Prevent repeated checks: set a small non-zero value if it was decided to be 0
+                    if (ptsOffsetUs == 0) ptsOffsetUs = 1; 
+                }
+                
+                long calibratedPtsUs = info.presentationTimeUs + (ptsOffsetUs == 1 ? 0 : ptsOffsetUs);
+                int latencyMs = (int) ((currentRealtimeUs - calibratedPtsUs) / 1000);
                 
                 frameCount++;
-                if (frameCount % 60 == 0) {
-                    Log.d(TAG, "Raw PTS info: currentUs=" + currentRealtimeUs + ", ptsUs=" + info.presentationTimeUs + ", latMs=" + latencyMs);
-                }
-
-                if (latencyMs > 0 && latencyMs < 2000) { // Filter out invalid large deltas
-                    latencyHistory.add(latencyMs);
+                if (latencyMs > -100 && latencyMs < 500) { // Sane filter allowing for slight negative drift
+                    latencyHistory.add(Math.max(0, latencyMs)); // Don't add negative values to average
                     if (latencyHistory.size() > 30) latencyHistory.remove(0);
                     
                     int sum = 0;
@@ -257,11 +267,15 @@ public class CameraStreamer {
                     int avgLatencyMs = sum / latencyHistory.size();
                     
                     if (frameCount % 60 == 0) {
-                        Log.d(TAG, "Encoder Latency: raw=" + latencyMs + "ms, avg=" + avgLatencyMs + "ms");
+                        // Send rolling average to Ground Station as "EncLat"
+                        try {
+                            com.openipc.mavlink.MavlinkNative.nativeSendNamedValueFloat("EncLat", (float) avgLatencyMs);
+                        } catch (UnsatisfiedLinkError e) {
+                            Log.w(TAG, "Mavlink native library not loaded yet");
+                        }
                     }
                     
                     if (latencyCallback != null) {
-                        // Switch to UI thread to update VideoActivity
                         new Handler(Looper.getMainLooper()).post(() -> 
                             latencyCallback.onLatencyUpdate(latencyMs, avgLatencyMs)
                         );
@@ -292,6 +306,7 @@ public class CameraStreamer {
         }, backgroundHandler);
 
         encoder.start();
+        Log.i(TAG, "MediaCodec encoder started successfully");
     }
 
     // ── Camera ────────────────────────────────────────────────────────────

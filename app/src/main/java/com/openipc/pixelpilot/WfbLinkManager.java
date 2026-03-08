@@ -72,20 +72,19 @@ public class WfbLinkManager extends BroadcastReceiver {
     @Override
     public synchronized void onReceive(Context context, Intent intent) {
         UsbDevice dev = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
-        if (android.hardware.usb.UsbManager.ACTION_USB_DEVICE_DETACHED.equals(intent.getAction())) {
-            if (dev == null) {
-                return;
-            }
+        String action = intent.getAction();
+
+        if (UsbManager.ACTION_USB_DEVICE_DETACHED.equals(action)) {
+            if (dev == null) return;
             Log.d(TAG, "usb device detached: " + dev.getVendorId() + "/" + dev.getProductId());
             refreshAdapters();
-        } else if (android.hardware.usb.UsbManager.ACTION_USB_DEVICE_ATTACHED.equals(intent.getAction())) {
-            if (dev == null) {
-                return;
-            }
+        } else if (UsbManager.ACTION_USB_DEVICE_ATTACHED.equals(action)) {
+            if (dev == null) return;
             Log.d(TAG, "usb device attached: " + dev.getVendorId() + "/" + dev.getProductId());
-            // No need to refresh since this should trigger a call to VideoActivity.onReceive();
-        } else if (ACTION_USB_PERMISSION.equals(intent.getAction())) {
-            Log.d(TAG, "Permission handled");
+            refreshAdapters(); // Headless requirement: refresh immediately
+        } else if (ACTION_USB_PERMISSION.equals(action)) {
+            Log.d(TAG, "USB Permission handled - refreshing adapters");
+            refreshAdapters();
         }
     }
 
@@ -126,8 +125,10 @@ public class WfbLinkManager extends BroadcastReceiver {
                 (android.hardware.usb.UsbManager) context.getSystemService(Context.USB_SERVICE);
         for (Map.Entry<String, UsbDevice> entry : attachedAdapters.entrySet()) {
             if (!usbManager.hasPermission(entry.getValue())) {
-                binding.tvMessage.setVisibility(View.VISIBLE);
-                binding.tvMessage.setText("No permission for wifi adapter(s) " + entry.getValue().getDeviceName());
+                if (binding != null) {
+                    binding.tvMessage.setVisibility(View.VISIBLE);
+                    binding.tvMessage.setText("No permission for wifi adapter(s) " + entry.getValue().getDeviceName());
+                }
                 PendingIntent pendingIntent = PendingIntent.getBroadcast(context, 0,
                         new Intent(WfbLinkManager.ACTION_USB_PERMISSION), PendingIntent.FLAG_IMMUTABLE);
                 usbManager.requestPermission(entry.getValue(), pendingIntent);
@@ -161,14 +162,16 @@ public class WfbLinkManager extends BroadcastReceiver {
 
         if (activeWifiAdapters.isEmpty()) {
             String text = "No compatible wifi adapter found.";
-            binding.tvMessage.setText(text);
-            binding.tvMessage.setVisibility(View.VISIBLE);
+            if (binding != null) {
+                binding.tvMessage.setText(text);
+                binding.tvMessage.setVisibility(View.VISIBLE);
 
-            String wifi = VideoActivity.wirelessInfo();
-            if (wifi != null) {
-                String local = "udp://" + wifi + ":5600";
-                binding.wifiMessage.setText(local);
-                binding.wifiMessage.setVisibility(View.VISIBLE);
+                String wifi = VideoActivity.wirelessInfo();
+                if (wifi != null) {
+                    String local = "udp://" + wifi + ":5600";
+                    binding.wifiMessage.setText(local);
+                    binding.wifiMessage.setVisibility(View.VISIBLE);
+                }
             }
         }
     }
@@ -200,10 +203,12 @@ public class WfbLinkManager extends BroadcastReceiver {
     }
 
     public synchronized boolean startAdapter(UsbDevice dev) {
-        binding.tvMessage.setVisibility(View.VISIBLE);
         String text = "Starting wfb-ng channel " + wifiChannel + " with " + String.format(
                 "[%04X", dev.getVendorId()) + ":" + String.format("%04X]", dev.getProductId());
-        binding.tvMessage.setText(text);
+        if (binding != null) {
+            binding.tvMessage.setVisibility(View.VISIBLE);
+            binding.tvMessage.setText(text);
+        }
         wfbLink.start(wifiChannel, bandWidth.getValue(), dev);
         return true;
     }

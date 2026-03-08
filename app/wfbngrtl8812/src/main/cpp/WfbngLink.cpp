@@ -87,8 +87,8 @@ void WfbngLink::initAgg() {
         std::make_unique<AggregatorUDPv4>(client_addr, mavlink_client_port, keyPath, epoch, mavlink_channel_id_f, 0);
 
     int udp_client_port = 5800;
-    // In VTX (drone) mode, receive tunnel from GS on port 0xa0; in RX (GS) mode, from drone on 0x20
-    uint8_t udp_radio_port = vtxMode_ ? 0xa0 : wfb_rx_port;
+    // In VTX (drone) mode, receive tunnel from GS on port 0xA0; in RX (GS) mode, from drone on 0x20
+    uint8_t udp_radio_port = vtxMode_ ? 0xa0 : 0x20;
     uint32_t udp_channel_id_f = (link_id << 8) + udp_radio_port;
     udp_channel_id_be = htobe32(udp_channel_id_f);
 
@@ -262,7 +262,7 @@ int WfbngLink::run(JNIEnv *env, jobject context, jint wifiChannel, jint bw, jint
                 tunnelArgs->bandwidth = 20;
                 tunnelArgs->k = 8;
                 tunnelArgs->n = 12;
-                tunnelArgs->radio_port = 0x20; // tunnel TX port
+                tunnelArgs->radio_port = 0x20; // tunnel TX port (Drone -> GS)
 
                 __android_log_print(
                     ANDROID_LOG_INFO, TAG, "Tunnel TX: link_id=%d radio_port=%d fec=%d/%d",
@@ -284,17 +284,18 @@ int WfbngLink::run(JNIEnv *env, jobject context, jint wifiChannel, jint bw, jint
                 telemetryArgs->keypair = keyPath;
                 telemetryArgs->stbc = stbc_enabled;
                 telemetryArgs->ldpc = ldpc_enabled;
-                telemetryArgs->mcs_index = 0;
+                telemetryArgs->mcs_index = 1; // Diagnostic: match wfb-ng default
                 telemetryArgs->vht_mode = false;
                 telemetryArgs->short_gi = false;
                 telemetryArgs->bandwidth = 20;
                 telemetryArgs->k = 1;
                 telemetryArgs->n = 2;
-                telemetryArgs->radio_port = 0x10; // telemetry TX port
+                telemetryArgs->radio_port = 0x10; // telemetry TX port (Drone -> GS)
 
                 __android_log_print(
-                    ANDROID_LOG_INFO, TAG, "Telemetry TX: link_id=%d radio_port=%d fec=%d/%d",
-                    telemetryArgs->link_id, telemetryArgs->radio_port, telemetryArgs->k, telemetryArgs->n);
+                    ANDROID_LOG_INFO, TAG, "Telemetry TX: starting thread with link_id=%d radio_port=0x%x mcs=%d fec=%d/%d udp=%d",
+                    telemetryArgs->link_id, telemetryArgs->radio_port, telemetryArgs->mcs_index, 
+                    telemetryArgs->k, telemetryArgs->n, telemetryArgs->udp_port);
 
                 init_thread(usb_telemetry_tx_thread, [&]() {
                     return std::make_unique<std::thread>([this, current_device, telemetryArgs] {

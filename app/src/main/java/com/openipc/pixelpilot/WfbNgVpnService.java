@@ -51,6 +51,9 @@ public class WfbNgVpnService extends VpnService {
 
         try {
             vpnInterface = establishVpnInterface();
+            if (vpnInterface == null) {
+                throw new Exception("establishVpnInterface returned null (permission likely missing)");
+            }
             isRunning = true;
         } catch (Exception e) {
             Log.e(TAG, "Failed to establish VPN interface", e);

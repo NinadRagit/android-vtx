@@ -287,14 +287,9 @@ public class VideoActivity extends AppCompatActivity implements
         // UI Setup
         initializeUI();
 
-        // Start and bind the Headless VtxService
-        android.content.Intent serviceIntent = new android.content.Intent(this, VtxService.class);
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            startForegroundService(serviceIntent);
-        } else {
-            startService(serviceIntent);
+        if (checkCameraPermission()) {
+            startVtxService();
         }
-        bindService(serviceIntent, connection, Context.BIND_AUTO_CREATE);
 
         // Prep UI video surface
         setupVtxVideoPlayers();
@@ -312,6 +307,17 @@ public class VideoActivity extends AppCompatActivity implements
         setupBatteryReceiver();
 
         
+    }
+
+    private void startVtxService() {
+        android.content.Intent serviceIntent = new android.content.Intent(this, VtxService.class);
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent);
+        } else {
+            startService(serviceIntent);
+        }
+        bindService(serviceIntent, connection, Context.BIND_AUTO_CREATE);
+        startVpnService();
     }
 
     // ----------------------------------------------------------------------------
@@ -1229,6 +1235,7 @@ public class VideoActivity extends AppCompatActivity implements
         editor.apply();
     }
 
+    public void registerReceivers() {
         IntentFilter batFilter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
 
         if (Build.VERSION.SDK_INT >= 33) {
@@ -1248,16 +1255,7 @@ public class VideoActivity extends AppCompatActivity implements
     @Override
     protected void onPause() {
         super.onPause();
-
         unregisterReceivers();
-
-        if (vtxService != null) vtxService.getWfbLinkManager().stopAdapters();
-
-        // Stop VPN service
-        Log.w(TAG, "onPause: stopping service");
-        Intent intent = new Intent(this, WfbNgVpnService.class);
-        intent.setAction("STOP_SERVICE");
-        startService(intent);
     }
 
     @Override
@@ -1265,7 +1263,6 @@ public class VideoActivity extends AppCompatActivity implements
         Log.d(TAG, "lifecycle onStop");
         handler.removeCallbacks(runnable);
         unregisterReceivers();
-        if (vtxService != null) vtxService.getWfbLinkManager().stopAdapters();
         if (isBound) {
             unbindService(connection);
             isBound = false;

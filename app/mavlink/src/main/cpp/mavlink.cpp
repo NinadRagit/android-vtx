@@ -29,6 +29,13 @@
 #include "mavlink.h"
 
 #define TAG "pixelpilot"
+#define COMP_ID MAV_COMP_ID_PERIPHERAL // 158
+
+static int send_fd = -1;
+static struct sockaddr_in dest_addr;
+static std::atomic<bool> heartbeat_running(false);
+
+void send_heartbeat();
 
 long distance_meters_between(double lat1, double lon1, double lat2, double lon2) {
     double delta = (lon1 - lon2) * 0.017453292519;
@@ -376,6 +383,71 @@ Java_com_openipc_mavlink_MavlinkNative_nativeCallBack(JNIEnv *env, jclass clazz,
         env->DeleteLocalRef(pJstring);
     }
 }
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_openipc_mavlink_MavlinkNative_nativeSendNamedValueFloat(JNIEnv *env, jclass clazz,
+                                                               jstring name, jfloat value) {
+    const char *nativeName = env->GetStringUTFChars(name, nullptr);
+    if (!nativeName) return;
+
+    mavlink_message_t msg;
+    char name_arr[10];
+    memset(name_arr, 0, 10);
+    strncpy(name_arr, nativeName, 10);
+
+    // Pack the NAMED_VALUE_FLOAT message
+    // sysid=1, compid=158 (Peripheral)
+    uint32_t boot_ms = 0;
+    struct timespec ts;
+    if (clock_gettime(CLOCK_BOOTTIME, &ts) == 0) {
+        boot_ms = (uint32_t)(ts.tv_sec * 1000 + ts.tv_nsec / 1000000);
+    }
+
+    mavlink_msg_named_value_float_pack(1, COMP_ID, &msg, boot_ms, name_arr, value);
+
+    uint8_t buf[MAVLINK_MAX_PACKET_LEN];
+    uint16_t len = mavlink_msg_to_send_buffer(buf, &msg);
+
+    // Send via UDP to 127.0.0.1:14551 (WFB-NG Telemetry TX)
+    if (send_fd == -1) {
+        send_fd = socket(AF_INET, SOCK_DGRAM, 0);
+        memset(&dest_addr, 0, sizeof(dest_addr));
+        dest_addr.sin_family = AF_INET;
+        dest_addr.sin_port = htons(14551);
+        inet_pton(AF_INET, "127.0.0.1", &dest_addr.sin_addr);
+
+        if (!heartbeat_running.exchange(true)) {
+            std::thread(send_heartbeat).detach();
+            __android_log_print(ANDROID_LOG_INFO, TAG, "Mavlink Heartbeat thread started");
+        }
+    }
+
+    if (send_fd >= 0) {
+        ssize_t sent = sendto(send_fd, buf, len, 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
+        if (sent < 0) {
+            __android_log_print(ANDROID_LOG_ERROR, TAG, "nativeSendNamedValueFloat: sendto failed: %s", strerror(errno));
+        }
+    } else {
+        __android_log_print(ANDROID_LOG_ERROR, TAG, "nativeSendNamedValueFloat: invalid send_fd");
+    }
+
+    env->ReleaseStringUTFChars(name, nativeName);
+}
+
+void send_heartbeat() {
+    uint8_t buf[MAVLINK_MAX_PACKET_LEN];
+    mavlink_message_t msg;
+
+    while (heartbeat_running) {
+        if (send_fd >= 0) {
+            mavlink_msg_heartbeat_pack(1, COMP_ID, &msg, MAV_TYPE_GENERIC, MAV_AUTOPILOT_GENERIC, 0, 0, MAV_STATE_ACTIVE);
+            uint16_t len = mavlink_msg_to_send_buffer(buf, &msg);
+            sendto(send_fd, buf, len, 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
+        }
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
+}
+
 extern "C"
 JNIEXPORT void JNICALL
 Java_com_openipc_mavlink_MavlinkNative_nativeStart(JNIEnv *env, jclass clazz, jobject context) {

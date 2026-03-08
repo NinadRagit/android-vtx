@@ -512,6 +512,7 @@ void UsbTransmitter::injectPacket(const uint8_t *buf, size_t size) {
         }
     }
 
+
     uint64_t key = (static_cast<uint64_t>(currentOutput_) << 8) | 0xff;
     antennaStat_[key].logLatency(get_time_us() - startUs, result, static_cast<uint32_t>(size));
 }
@@ -579,6 +580,9 @@ int TxFrame::open_udp_socket_for_rx(int port, int buf_size) {
         throw std::runtime_error(string_format("Unable to bind to port %d: %s", port, std::strerror(errno)));
     }
 
+#ifdef __ANDROID__
+    __android_log_print(ANDROID_LOG_INFO, "pixelpilot", "open_udp_socket_for_rx: port=%d fd=%d", port, fd);
+#endif
     return fd;
 }
 
@@ -772,6 +776,7 @@ void TxFrame::dataSource(
                         }
                         break;
                     }
+
 
                     // Incoming stats
                     ++countPIncoming;

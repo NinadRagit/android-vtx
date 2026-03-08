@@ -50,7 +50,7 @@ public class WfbNgLink implements WfbNGStatsChanged {
     public static native void nativeSetUseLdpc(long nativeInstance, int use);
     public static native void nativeSetUseStbc(long nativeInstance, int use);
 
-    public WfbNgLink(final AppCompatActivity parent, boolean vtxMode) {
+    public WfbNgLink(final Context parent, boolean vtxMode) {
         this.context = parent;
         nativeWfbngLink = nativeInitialize(context, vtxMode);
         timer = new Timer();

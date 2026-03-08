@@ -190,8 +190,13 @@ public class VtxService extends Service implements WfbNGStatsChanged {
     }
 
     private void startVpnService() {
-        Intent serviceIntent = new Intent(this, WfbNgVpnService.class);
-        startService(serviceIntent);
+        Intent intent = android.net.VpnService.prepare(this);
+        if (intent == null) {
+            Intent serviceIntent = new Intent(this, WfbNgVpnService.class);
+            startService(serviceIntent);
+        } else {
+            Log.w(TAG, "VPN permission missing. Deferring VPN start to UI.");
+        }
     }
 
     private void ensureWfbKeys() {
