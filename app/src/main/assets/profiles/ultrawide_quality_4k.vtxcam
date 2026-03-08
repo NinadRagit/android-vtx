@@ -1,0 +1,17 @@
+{
+  "profileName": "Ultra Wide 4K 30fps",
+  "description": "Maximum resolution for Ultra Wide camera. High detail, wide FOV.",
+  "profileVersion": 1,
+  "camera2": {
+    "width": 3840, "height": 2160, "fps": 30,
+    "aeLocked": false, "aeCompensation": 0, "afMode": 0,
+    "edgeMode": 1, "noiseReduction": 1,
+    "videoStabilization": false, "iso": 0, "shutterSpeed": 0
+  },
+  "encoder": {
+    "codec": "h264", "bitrate": 16000000, "bitrateMode": 0,
+    "keyframeInterval": 1, "intraRefreshPeriod": 0, "bFrames": 0,
+    "encoderLatency": 0, "encoderPriority": 0, "operatingRate": 30,
+    "h264Profile": 2, "h264Level": 41
+  }
+}

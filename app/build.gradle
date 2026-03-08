@@ -46,7 +46,6 @@ android {
 
 dependencies {
     implementation(project(":app:mavlink"))
-    implementation(project(":app:videonative"))
     implementation(project(":app:wfbngrtl8812"))
 
     implementation(libs.appcompat)

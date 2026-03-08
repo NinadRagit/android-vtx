@@ -1,0 +1,17 @@
+{
+  "profileName": "Low Latency 720p 60fps",
+  "description": "Minimum latency: ISP off, AE locked, realtime encoder. Main camera only (HS session).",
+  "profileVersion": 1,
+  "camera2": {
+    "width": 1280, "height": 720, "fps": 60,
+    "aeLocked": true, "aeCompensation": 0, "afMode": 0,
+    "edgeMode": 0, "noiseReduction": 0,
+    "videoStabilization": false, "iso": 0, "shutterSpeed": 0
+  },
+  "encoder": {
+    "codec": "h264", "bitrate": 4000000, "bitrateMode": 0,
+    "keyframeInterval": 1, "intraRefreshPeriod": 30, "bFrames": 0,
+    "encoderLatency": 0, "encoderPriority": 0, "operatingRate": 60,
+    "h264Profile": 1, "h264Level": 0
+  }
+}

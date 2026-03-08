@@ -1,0 +1,17 @@
+{
+  "profileName": "FPV Racing 720p 240fps",
+  "description": "Extreme high-speed: 240fps HS session, AE locked. Main camera only.",
+  "profileVersion": 1,
+  "camera": {
+    "width": 1280, "height": 720, "fps": 240,
+    "aeLocked": false, "aeCompensation": 0, "afMode": 3,
+    "edgeMode": 1, "noiseReduction": 1,
+    "videoStabilization": false, "iso": 0, "shutterSpeed": 0
+  },
+  "encoder": {
+    "codec": "h264", "bitrate": 6000000, "bitrateMode": 0,
+    "keyframeInterval": 1, "intraRefreshPeriod": 120, "bFrames": 0,
+    "encoderLatency": 0, "encoderPriority": 0, "operatingRate": 240,
+    "h264Profile": 1, "h264Level": 0
+  }
+}

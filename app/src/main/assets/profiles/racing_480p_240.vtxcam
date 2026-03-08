@@ -1,0 +1,18 @@
+{
+  "profileName": "Absolute Minimum 480p 240fps",
+  "description": "Extreme testing: 480p 240fps with all possible ISP processing disabled for minimum latency.",
+  "camera": {
+    "width": 640, "height": 480, "fps": 240,
+    "aeLocked": true, "aeCompensation": 0, "afMode": 0,
+    "edgeMode": 0, "noiseReduction": 0,
+    "tonemapMode": 1, "lensShadingMode": 1, "hotPixelMode": 1,
+    "videoStabilization": false, "opticalStabilizationMode": 0,
+    "iso": 400, "shutterSpeed": 4166667
+  },
+  "encoder": {
+    "codec": "h264", "bitrate": 4000000, "bitrateMode": 0,
+    "keyframeInterval": 1, "intraRefreshPeriod": 120, "bFrames": 0,
+    "encoderLatency": 0, "encoderPriority": 0, "operatingRate": 240,
+    "h264Profile": 1, "h264Level": 0
+  }
+}

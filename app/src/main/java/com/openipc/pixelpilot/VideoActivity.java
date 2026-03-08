@@ -23,9 +23,11 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.ParcelFileDescriptor;
 import android.text.format.Formatter;
+import android.util.Size;
 import android.util.Base64;
 import android.util.DisplayMetrics;
 import android.util.Log;
+import java.util.List;
 import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.SubMenu;
@@ -34,9 +36,17 @@ import android.view.WindowManager;
 import android.webkit.HttpAuthHandler;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
+import android.widget.Button;
 import android.widget.PopupMenu;
 import android.widget.SeekBar;
+import android.widget.Spinner;
+import android.widget.TextView;
 import android.widget.Toast;
+import android.widget.ToggleButton;
+import androidx.appcompat.app.AlertDialog;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -57,9 +67,6 @@ import com.openipc.mavlink.MavlinkUpdate;
 import com.openipc.pixelpilot.databinding.ActivityVideoBinding;
 import com.openipc.pixelpilot.osd.OSDElement;
 import com.openipc.pixelpilot.osd.OSDManager;
-import com.openipc.videonative.DecodingInfo;
-import com.openipc.videonative.IVideoParamsChanged;
-import com.openipc.videonative.VideoPlayer;
 import com.openipc.wfbngrtl8812.WfbNGStats;
 import com.openipc.wfbngrtl8812.WfbNGStatsChanged;
 import com.openipc.wfbngrtl8812.WfbNgLink;
@@ -87,7 +94,7 @@ import java.util.TimerTask;
 
 // Most basic implementation of an activity that uses VideoNative to stream a video
 // Into an Android Surface View
-public class VideoActivity extends AppCompatActivity implements IVideoParamsChanged,
+public class VideoActivity extends AppCompatActivity implements
         WfbNGStatsChanged, MavlinkUpdate, SettingsChanged {
     private static final String TAG = "pixelpilot";
     private static final int PICK_KEY_REQUEST_CODE = 1;
@@ -101,38 +108,22 @@ public class VideoActivity extends AppCompatActivity implements IVideoParamsChan
             handler.postDelayed(this, 100);
         }
     };
-    protected DecodingInfo mDecodingInfo;
-    int lastVideoW = 0, lastVideoH = 0, lastCodec = 1;
     WfbLinkManager wfbLinkManager;
     BroadcastReceiver batteryReceiver;
-    VideoPlayer videoPlayer;
     private ActivityVideoBinding binding;
     private OSDManager osdManager;
     private ParcelFileDescriptor dvrFd = null;
     private Timer dvrIconTimer = null;
     private Timer recordTimer = null;
     private int seconds = 0;
-    private boolean isVRMode = false;
-    private ConstraintLayout constraintLayout;
-    private ConstraintSet constraintSet;
     private WfbNgLink wfbLink;
     private CameraStreamer cameraStreamer;
-    private boolean isVtxMode = false;
+    private CameraHelper cameraHelper;
+    private CameraConfig cameraConfig;
     private static final int CAMERA_PERMISSION_REQUEST_CODE = 100;
 
     private static final String PREF_DRONE_USERNAME = "drone_username";
     private static final String PREF_DRONE_PASSWORD = "drone_password";
-
-    public boolean getVRSetting() {
-        return getSharedPreferences("general", Context.MODE_PRIVATE).getBoolean("vr-mode", false);
-    }
-
-    public void setVRSetting(boolean v) {
-        SharedPreferences prefs = getSharedPreferences("general", Context.MODE_PRIVATE);
-        SharedPreferences.Editor editor = prefs.edit();
-        editor.putBoolean("vr-mode", v);
-        editor.commit();
-    }
 
     public static int getChannel(Context context) {
         return context.getSharedPreferences("general",
@@ -142,6 +133,40 @@ public class VideoActivity extends AppCompatActivity implements IVideoParamsChan
     public static int getBandwidth(Context context) {
         return context.getSharedPreferences("general",
                 Context.MODE_PRIVATE).getInt("bandwidth", 20);
+    }
+
+    public static String getCameraId(Context context) {
+        String id = context.getSharedPreferences("general",
+                Context.MODE_PRIVATE).getString("camera_id", "0");
+        // Simple presence check, deeper validation happens in the dialog/start flow
+        return id;
+    }
+
+    public static Size getResolution(Context context) {
+        String res = context.getSharedPreferences("general",
+                Context.MODE_PRIVATE).getString("camera_res", "1280x720");
+        try {
+            String[] parts = res.split("x");
+            return new Size(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]));
+        } catch (Exception e) {
+            return new Size(1280, 720);
+        }
+    }
+
+    public static int getFps(Context context) {
+        return context.getSharedPreferences("general",
+                Context.MODE_PRIVATE).getInt("camera_fps", 60);
+    }
+
+    public static boolean isStreamRunning(Context context) {
+        return context.getSharedPreferences("general",
+                Context.MODE_PRIVATE).getBoolean("stream_running", true);
+    }
+
+    private void setStreamRunning(boolean running) {
+        getSharedPreferences("general", MODE_PRIVATE).edit()
+                .putBoolean("stream_running", running)
+                .apply();
     }
 
     public static String wirelessInfo() {
@@ -247,11 +272,14 @@ public class VideoActivity extends AppCompatActivity implements IVideoParamsChan
     @SuppressLint("ClickableViewAccessibility")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        Log.d(TAG, "lifecycle onCreate");
         super.onCreate(savedInstanceState);
-
+        
         // UI Setup
         initializeUI();
+
+        // Video Setup
+        // Directly initialize VTX mode as it is now the only mode
+        setupVtxVideoPlayers();
 
         // WFB-NG Setup
         initializeWfbNg();
@@ -259,18 +287,8 @@ public class VideoActivity extends AppCompatActivity implements IVideoParamsChan
         // Options like tx power must be initialized explicitly
         initDefaultOptions();
 
-        // Video Player(s) Setup
-        // This now handles both standard and VTX modes internally
-        initializeVideoPlayers();
-
-        // VR-specific SeekBars (only if VR mode)
-        setupVRSeekBarsIfNeeded();
-
         // OSD Manager Setup
         setupOSDManager();
-
-        // PieChart Setup
-        setupPieChart();
 
         // Button Handlers
         setupButtonHandlers();
@@ -303,14 +321,11 @@ public class VideoActivity extends AppCompatActivity implements IVideoParamsChan
     }
 
     public boolean getVtxSetting() {
-        return getSharedPreferences("general", Context.MODE_PRIVATE).getBoolean("vtx-mode", false);
+        return true; // VTX mode is now the only mode
     }
 
     public void setVtxSetting(boolean v) {
-        SharedPreferences prefs = getSharedPreferences("general", Context.MODE_PRIVATE);
-        SharedPreferences.Editor editor = prefs.edit();
-        editor.putBoolean("vtx-mode", v);
-        editor.commit();
+        // No-op: VTX is permanent
     }
 
     // ----------------------------------------------------------------------------
@@ -335,212 +350,38 @@ public class VideoActivity extends AppCompatActivity implements IVideoParamsChan
     // VIDEO PLAYER SETUP
     // ----------------------------------------------------------------------------
 
-    /**
-     * Initializes VideoPlayer and configures surfaces for VR or standard mode.
-     */
-    private void initializeVideoPlayers() {
-        videoPlayer = new VideoPlayer(this);
-        videoPlayer.setIVideoParamsChanged(this);
-
-        isVRMode = getVRSetting();
-        isVtxMode = getVtxSetting();
-
-        if (isVtxMode) {
-            setupVtxVideoPlayers();
-        } else if (isVRMode) {
-            setupVRVideoPlayers();
-        } else {
-            setupStandardVideoPlayer();
+    private final android.view.SurfaceHolder.Callback surfaceCallback = new android.view.SurfaceHolder.Callback() {
+        @Override
+        public void surfaceCreated(@NonNull android.view.SurfaceHolder holder) {
+            if (checkCameraPermission()) {
+                if (cameraConfig == null) cameraConfig = CameraConfig.load(VideoActivity.this);
+                cameraStreamer.startStreaming(holder.getSurface(), cameraConfig, binding.btnPreviewToggle.isChecked());
+            }
         }
-    }
+
+        @Override
+        public void surfaceChanged(@NonNull android.view.SurfaceHolder holder, int format, int width, int height) {}
+
+        @Override
+        public void surfaceDestroyed(@NonNull android.view.SurfaceHolder holder) {
+            if (cameraStreamer != null) {
+                cameraStreamer.stopStreaming();
+            }
+        }
+    };
 
     private void setupVtxVideoPlayers() {
-        binding.surfaceViewLeft.setVisibility(View.GONE);
-        binding.surfaceViewRight.setVisibility(View.GONE);
         binding.mainVideo.setVisibility(View.VISIBLE);
+        if (cameraStreamer == null) cameraStreamer = new CameraStreamer(this);
+        if (cameraHelper == null) cameraHelper = new CameraHelper(this);
+        if (cameraConfig == null) cameraConfig = CameraConfig.load(this);
+        binding.mainVideo.getHolder().removeCallback(surfaceCallback);
+        binding.mainVideo.getHolder().addCallback(surfaceCallback);
         
-        if (cameraStreamer == null) {
-            cameraStreamer = new CameraStreamer(this);
-        }
-
-        binding.mainVideo.getHolder().addCallback(new android.view.SurfaceHolder.Callback() {
-            @Override
-            public void surfaceCreated(@NonNull android.view.SurfaceHolder holder) {
-                if (isVtxMode && checkCameraPermission()) {
-                    cameraStreamer.startStreaming(holder.getSurface());
-                }
-            }
-
-            @Override
-            public void surfaceChanged(@NonNull android.view.SurfaceHolder holder, int format, int width, int height) {}
-
-            @Override
-            public void surfaceDestroyed(@NonNull android.view.SurfaceHolder holder) {
-                if (cameraStreamer != null) {
-                    cameraStreamer.stopStreaming();
-                }
-            }
+        cameraStreamer.setLatencyCallback((rawLatencyMs, avgLatencyMs) -> {
+            binding.tvEncLatencyRaw.setText(rawLatencyMs + " ms (raw)");
+            binding.tvEncLatencyAvg.setText(avgLatencyMs + " ms");
         });
-    }
-
-    /**
-     * Configures the UI for VR mode by attaching callbacks to the left and right SurfaceViews.
-     */
-    private void setupVRVideoPlayers() {
-        binding.mainVideo.setVisibility(View.GONE);
-        binding.surfaceViewLeft.getHolder().addCallback(videoPlayer.configure1(0));
-        binding.surfaceViewRight.getHolder().addCallback(videoPlayer.configure1(1));
-    }
-
-    /**
-     * Configures the UI for standard, single-surface video playback.
-     */
-    private void setupStandardVideoPlayer() {
-        binding.surfaceViewRight.setVisibility(View.GONE);
-        binding.surfaceViewLeft.setVisibility(View.GONE);
-        binding.mainVideo.getHolder().addCallback(videoPlayer.configure1(0));
-    }
-
-    // ----------------------------------------------------------------------------
-    // VR SEEK BARS (only in VR mode)
-    // ----------------------------------------------------------------------------
-
-    /**
-     * Initializes and configures SeekBars for VR mode to adjust the margin and size of surfaces.
-     * If not in VR mode, this method does nothing.
-     */
-    private void setupVRSeekBarsIfNeeded() {
-        if (!isVRMode) return;
-
-        constraintLayout = binding.frameLayout;
-        constraintSet = new ConstraintSet();
-        constraintSet.clone(constraintLayout);
-
-        configureVRSeekBars();
-        configureVRSeekBarVisibility();
-        configureVRSeekBarListeners();
-    }
-
-    /**
-     * Configures both the margin (binding.seekBar) and distance (binding.distanceSeekBar) SeekBars.
-     */
-    private void configureVRSeekBars() {
-        // Rotate the first seekBar 180 degrees
-        binding.seekBar.setRotation(180);
-
-        // Retrieve saved progress for both seekBars
-        SharedPreferences sharedPreferences = getSharedPreferences("SeekBarPrefs", MODE_PRIVATE);
-        SharedPreferences sharedPreferencesd = getSharedPreferences("SeekBarPrefsD", MODE_PRIVATE);
-
-        int savedProgress = sharedPreferences.getInt("seekBarProgress", 1);
-        int savedDistanceProgress = sharedPreferencesd.getInt("distanceSeekBarProgress", 1);
-
-        // Apply saved progress values
-        binding.seekBar.setProgress(savedProgress);
-        binding.distanceSeekBar.setProgress(savedDistanceProgress);
-
-        // Make them visible initially
-        binding.seekBar.setVisibility(View.VISIBLE);
-        binding.distanceSeekBar.setVisibility(View.VISIBLE);
-
-        // Apply initial constraints
-        applyVRMargins(savedProgress);
-        applyVRDistance(savedDistanceProgress);
-    }
-
-    /**
-     * Manages hiding and showing the SeekBars after some delay or upon user touch.
-     */
-    private void configureVRSeekBarVisibility() {
-        // Hide SeekBars after 3 seconds
-        handler.postDelayed(() -> {
-            binding.seekBar.setVisibility(View.GONE);
-            binding.distanceSeekBar.setVisibility(View.GONE);
-            updateViewRatio(R.id.surfaceViewLeft, lastVideoW, lastVideoH);
-            updateViewRatio(R.id.surfaceViewRight, lastVideoW, lastVideoH);
-        }, 3000);
-
-        // Show SeekBars when the layout is touched
-        binding.frameLayout.setOnTouchListener((v, event) -> {
-            if (event.getAction() == MotionEvent.ACTION_DOWN) {
-                binding.seekBar.setVisibility(View.VISIBLE);
-                binding.distanceSeekBar.setVisibility(View.VISIBLE);
-                handler.postDelayed(() -> {
-                    binding.seekBar.setVisibility(View.GONE);
-                    binding.distanceSeekBar.setVisibility(View.GONE);
-                    updateViewRatio(R.id.surfaceViewLeft, lastVideoW, lastVideoH);
-                    updateViewRatio(R.id.surfaceViewRight, lastVideoW, lastVideoH);
-                }, 3000);
-            }
-            return false;
-        });
-    }
-
-    /**
-     * Sets listeners on the SeekBars to adjust margins and distances in real time.
-     */
-    private void configureVRSeekBarListeners() {
-        binding.seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            @Override
-            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                applyVRMargins(progress);
-                saveSeekBarValue("SeekBarPrefs", "seekBarProgress", progress);
-            }
-
-            @Override
-            public void onStartTrackingTouch(SeekBar seekBar) {
-            }
-
-            @Override
-            public void onStopTrackingTouch(SeekBar seekBar) {
-            }
-        });
-
-        binding.distanceSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            @Override
-            public void onProgressChanged(SeekBar distanceSeekBar, int progress, boolean fromUser) {
-                applyVRDistance(progress);
-                saveSeekBarValue("SeekBarPrefsD", "distanceSeekBarProgress", progress);
-            }
-
-            @Override
-            public void onStartTrackingTouch(SeekBar seekBar) {
-            }
-
-            @Override
-            public void onStopTrackingTouch(SeekBar seekBar) {
-            }
-        });
-    }
-
-    /**
-     * Adjusts margins for left/right SurfaceViews based on progress.
-     */
-    private void applyVRMargins(int progress) {
-        int margin = progress * 20; // Adjust multiplier as needed
-        constraintSet.setMargin(R.id.surfaceViewLeft, ConstraintSet.START, margin);
-        constraintSet.setMargin(R.id.surfaceViewRight, ConstraintSet.END, margin);
-        constraintSet.applyTo(constraintLayout);
-    }
-
-    /**
-     * Adjusts size for left/right SurfaceViews based on progress.
-     */
-    private void applyVRDistance(int progress) {
-        int size = progress * 20; // Adjust multiplier as needed
-        constraintSet.setMargin(R.id.surfaceViewLeft, ConstraintSet.END, size);
-        constraintSet.setMargin(R.id.surfaceViewRight, ConstraintSet.START, size);
-        constraintSet.applyTo(constraintLayout);
-    }
-
-    /**
-     * Saves the SeekBar progress value to SharedPreferences.
-     */
-    private void saveSeekBarValue(String prefsName, String key, int progress) {
-        SharedPreferences sp = getSharedPreferences(prefsName, MODE_PRIVATE);
-        SharedPreferences.Editor editor = sp.edit();
-        editor.putInt(key, progress);
-        editor.apply();
     }
 
     // ----------------------------------------------------------------------------
@@ -556,31 +397,6 @@ public class VideoActivity extends AppCompatActivity implements IVideoParamsChan
     }
 
     // ----------------------------------------------------------------------------
-    // PIECHART SETUP
-    // ----------------------------------------------------------------------------
-
-    /**
-     * Initializes and configures the PieChart to show link statistics (initially empty).
-     */
-    private void setupPieChart() {
-        PieChart chart = binding.pcLinkStat;
-        chart.getLegend().setEnabled(false);
-        chart.getDescription().setEnabled(false);
-        chart.setDrawHoleEnabled(true);
-        chart.setHoleColor(Color.WHITE);
-        chart.setHoleRadius(75f);
-        chart.setCenterTextSize(12);
-        chart.setCenterText("RSSI");
-        chart.setHighlightPerTapEnabled(false);
-        chart.setRotationEnabled(false);
-        chart.setClickable(false);
-        chart.setTouchEnabled(false);
-
-        PieData emptyData = new PieData(new PieDataSet(new ArrayList<>(), ""));
-        chart.setData(emptyData);
-    }
-
-    // ----------------------------------------------------------------------------
     // BUTTON HANDLERS
     // ----------------------------------------------------------------------------
 
@@ -590,57 +406,96 @@ public class VideoActivity extends AppCompatActivity implements IVideoParamsChan
     private void setupButtonHandlers() {
         binding.imgBtnRecord.setOnClickListener(item -> startStopDvr());
         binding.btnSettings.setOnClickListener(this::showSettingsMenu);
+        binding.btnStreamToggle.setChecked(isStreamRunning(this));
+        binding.btnStreamToggle.setOnCheckedChangeListener((btn, isChecked) -> {
+            setStreamRunning(isChecked);
+            if (isChecked) {
+                restartStreaming();
+            } else {
+                if (cameraStreamer != null) cameraStreamer.stopStreaming();
+            }
+        });
+        binding.btnPreviewToggle.setOnCheckedChangeListener((btn, isChecked) -> {
+            if (isStreamRunning(this)) {
+                restartStreaming();
+            }
+        });
     }
 
     /**
-     * Shows the main settings popup menu and configures its items.
+     * Shows the main settings popup menu.
      */
     private void showSettingsMenu(View anchor) {
         PopupMenu popup = new PopupMenu(this, anchor);
 
-        // VR submenu
-        setupVRSubMenu(popup);
+        popup.getMenu().add("Import Camera Config").setOnMenuItemClickListener(it -> {
+            importConfigLauncher.launch(new String[]{"*/*"});
+            return true;
+        });
 
-        // Channel submenu
         setupChannelSubMenu(popup);
-
-        // Bandwidth submenu
         setupBandwidthSubMenu(popup);
-
-        // OSD submenu
         setupOSDSubMenu(popup);
-
-        // WFB submenu
         setupWFBSubMenu(popup);
-
-        // Adaptive link submenu
         setupAdaptiveLinkSubMenu(popup);
-
-        // Recording submenu
-        setupRecordingSubMenu(popup);
-
-        // Drone submenu
-        setupDroneSubMenu(popup);
-
-        // Help submenu
         setupHelpSubMenu(popup);
-
-        // VTX submenu
-        setupVTXSubMenu(popup);
 
         popup.show();
     }
 
-    private void setupVTXSubMenu(PopupMenu popup) {
-        SubMenu vtxMenu = popup.getMenu().addSubMenu("VTX mode");
-        MenuItem vtxItem = vtxMenu.add(getVtxSetting() ? "On" : "Off");
-        vtxItem.setOnMenuItemClickListener(item -> {
-            isVtxMode = !getVtxSetting();
-            setVtxSetting(isVtxMode);
-            vtxItem.setTitle(isVtxMode ? "Off" : "On");
-            resetApp();
-            return false;
-        });
+    /** File picker to import a camera_config.json file. */
+    private final androidx.activity.result.ActivityResultLauncher<String[]> importConfigLauncher =
+            registerForActivityResult(new androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
+                    uri -> {
+                        if (uri == null) return;
+                        try {
+                            cameraConfig = CameraConfig.importFrom(this, uri);
+                            Toast.makeText(this, "Config loaded: " + cameraConfig.getSummary(), Toast.LENGTH_LONG).show();
+                            if (isStreamRunning(this)) restartStreaming();
+                        } catch (Exception e) {
+                            Toast.makeText(this, "Import failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                        }
+                    });
+
+
+    private void restartStreaming() {
+        if (!isStreamRunning(this)) return;
+        if (cameraStreamer == null || !binding.mainVideo.getHolder().getSurface().isValid()) return;
+        if (cameraConfig == null) cameraConfig = CameraConfig.load(this);
+        cameraStreamer.stopStreaming();
+        cameraStreamer.startStreaming(binding.mainVideo.getHolder().getSurface(), cameraConfig, binding.btnPreviewToggle.isChecked());
+    }
+
+    private void restartStreamingWithProfile(CameraConfig config) {
+        cameraConfig = config;
+        restartStreaming();
+    }
+
+    private boolean validateParams(String cid, Size res, int fps) {
+        List<Size> supportedSizes = cameraHelper.getSupportedSizes(cid);
+        if (!supportedSizes.contains(res)) return false;
+        
+        List<Integer> supportedFps = cameraHelper.getSupportedFps(cid, res);
+        return supportedFps.contains(fps);
+    }
+
+    private void resetToSafeDefaults(String cid) {
+        List<Size> sizes = cameraHelper.getSupportedSizes(cid);
+        Size defaultRes = new Size(1280, 720);
+        if (!sizes.contains(defaultRes) && !sizes.isEmpty()) {
+            defaultRes = sizes.get(0);
+        }
+        
+        List<Integer> fpsList = cameraHelper.getSupportedFps(cid, defaultRes);
+        int defaultFps = 60;
+        if (!fpsList.contains(defaultFps) && !fpsList.isEmpty()) {
+            defaultFps = fpsList.get(0);
+        }
+
+        SharedPreferences.Editor editor = getSharedPreferences("general", MODE_PRIVATE).edit();
+        editor.putString("camera_res", defaultRes.getWidth() + "x" + defaultRes.getHeight());
+        editor.putInt("camera_fps", defaultFps);
+        editor.apply();
     }
 
     private boolean checkCameraPermission() {
@@ -656,28 +511,11 @@ public class VideoActivity extends AppCompatActivity implements IVideoParamsChan
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == CAMERA_PERMISSION_REQUEST_CODE) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                if (isVtxMode) resetApp();
+                resetApp();
             } else {
                 Toast.makeText(this, "Camera permission is required for VTX mode", Toast.LENGTH_LONG).show();
             }
         }
-    }
-
-    /**
-     * Submenu that toggles VR mode.
-     */
-    private void setupVRSubMenu(PopupMenu popup) {
-        SubMenu vrMenu = popup.getMenu().addSubMenu("VR mode");
-        MenuItem vrItem = vrMenu.add(getVRSetting() ? "On" : "Off");
-        vrItem.setOnMenuItemClickListener(item -> {
-            isVRMode = !getVRSetting();
-            setVRSetting(isVRMode);
-            vrItem.setTitle(isVRMode ? "Off" : "On");
-            item.setShowAsAction(MenuItem.SHOW_AS_ACTION_COLLAPSE_ACTION_VIEW);
-            item.setActionView(new View(this));
-            resetApp();
-            return false;
-        });
     }
 
     /**
@@ -687,9 +525,8 @@ public class VideoActivity extends AppCompatActivity implements IVideoParamsChan
         SubMenu chnMenu = popup.getMenu().addSubMenu("Channel");
         int channelPref = getChannel(this);
 
-        // Create a disabled item to act as the header
         MenuItem headerItem = chnMenu.add("Current: " + channelPref);
-        headerItem.setEnabled(false); // Makes it unclickable and grayed out like a label
+        headerItem.setEnabled(false);
 
         String[] channels = getResources().getStringArray(R.array.channels);
         for (String chnStr : channels) {
@@ -707,9 +544,8 @@ public class VideoActivity extends AppCompatActivity implements IVideoParamsChan
         SubMenu bwMenu = popup.getMenu().addSubMenu("Bandwidth");
         int bandwidthPref = getBandwidth(this);
 
-        // Add a disabled item to act as the header
         MenuItem headerItem = bwMenu.add("Current: " + bandwidthPref);
-        headerItem.setEnabled(false); // Visually looks like a header, but unclickable
+        headerItem.setEnabled(false);
 
         String[] bws = getResources().getStringArray(R.array.bandwidths);
         for (String bwStr : bws) {
@@ -773,9 +609,6 @@ public class VideoActivity extends AppCompatActivity implements IVideoParamsChan
 
     /**
      * Submenu for Adaptive link functionality.
-     * It creates two options:
-     * - "Enable": toggles the adaptive link quality thread
-     * - "Power": a submenu that lets the user choose the TX power (1, 10, 20, 30, 40)
      */
     private void setupAdaptiveLinkSubMenu(PopupMenu popup) {
         SubMenu adaptiveMenu = popup.getMenu().addSubMenu("Adaptive link");
@@ -784,7 +617,6 @@ public class VideoActivity extends AppCompatActivity implements IVideoParamsChan
         boolean adaptiveEnabled = prefs.getBoolean("adaptive_link_enabled", true);
         int adaptiveTxPower = prefs.getInt("adaptive_tx_power", 20);
 
-        // Adaptive link Enable option
         MenuItem adaptiveEnable = adaptiveMenu.add("Enable");
         adaptiveEnable.setCheckable(true);
         adaptiveEnable.setChecked(adaptiveEnabled);
@@ -794,12 +626,10 @@ public class VideoActivity extends AppCompatActivity implements IVideoParamsChan
             SharedPreferences.Editor editor = getSharedPreferences("general", MODE_PRIVATE).edit();
             editor.putBoolean("adaptive_link_enabled", newState);
             editor.apply();
-            // Call instance method on the WfbNgLink instance via the wfbLinkManager.
             wfbLink.nativeSetAdaptiveLinkEnabled(newState);
             return true;
         });
 
-        // Adaptive link Power submenu
         SubMenu powerSubMenu = adaptiveMenu.addSubMenu("Power");
         int[] txOptions = {1, 10, 20, 30, 40};
         for (int power : txOptions) {
@@ -809,7 +639,6 @@ public class VideoActivity extends AppCompatActivity implements IVideoParamsChan
                 powerItem.setChecked(true);
             }
             powerItem.setOnMenuItemClickListener(item -> {
-                // Uncheck all items in the submenu
                 for (int i = 0; i < powerSubMenu.size(); i++) {
                     powerSubMenu.getItem(i).setChecked(false);
                 }
@@ -817,15 +646,12 @@ public class VideoActivity extends AppCompatActivity implements IVideoParamsChan
                 SharedPreferences.Editor editor = getSharedPreferences("general", MODE_PRIVATE).edit();
                 editor.putInt("adaptive_tx_power", power);
                 editor.apply();
-                // Call instance method on the WfbNgLink instance via the wfbLinkManager.
                 wfbLink.nativeSetTxPower(power);
                 return true;
             });
         }
 
-        // Adaptive use FEC submenu
         boolean fecEnabled = prefs.getBoolean("custom_fec_enabled", true);
-
         MenuItem fecEnable = adaptiveMenu.add("FEC");
         fecEnable.setCheckable(true);
         fecEnable.setChecked(fecEnabled);
@@ -835,7 +661,6 @@ public class VideoActivity extends AppCompatActivity implements IVideoParamsChan
             SharedPreferences.Editor editor = getSharedPreferences("general", MODE_PRIVATE).edit();
             editor.putBoolean("custom_fec_enabled", newState);
             editor.apply();
-            // Call instance method on the WfbNgLink instance via the wfbLinkManager.
             wfbLink.nativeSetUseFec(newState ? 1 : 0);
             return true;
         });
@@ -1212,8 +1037,6 @@ public class VideoActivity extends AppCompatActivity implements IVideoParamsChan
                 startDvr(dvrUri);
             } else {
                 wfbLinkManager.stopAdapters();
-                videoPlayer.stop();
-                videoPlayer.stopAudio();
 
                 Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
                 intent.addCategory(Intent.CATEGORY_DEFAULT);
@@ -1233,7 +1056,6 @@ public class VideoActivity extends AppCompatActivity implements IVideoParamsChan
         }
         try {
             dvrFd = getContentResolver().openFileDescriptor(dvrUri, "rw");
-            videoPlayer.startDvr(dvrFd.getFd(), getDvrMP4());
             binding.imgBtnRecord.setImageResource(R.drawable.recording);
         } catch (IOException e) {
             Log.e(TAG, "Failed to open dvr file ", e);
@@ -1270,7 +1092,6 @@ public class VideoActivity extends AppCompatActivity implements IVideoParamsChan
         }
         binding.imgRecIndicator.setVisibility(View.INVISIBLE);
         binding.imgBtnRecord.setImageResource(R.drawable.record);
-        videoPlayer.stopDvr();
         if (recordTimer != null) {
             recordTimer.cancel();
             recordTimer.purge();
@@ -1471,8 +1292,6 @@ public class VideoActivity extends AppCompatActivity implements IVideoParamsChan
 
         unregisterReceivers();
 
-        videoPlayer.stop();
-        videoPlayer.stopAudio();
         wfbLinkManager.stopAdapters();
 
         // Stop VPN service
@@ -1484,18 +1303,15 @@ public class VideoActivity extends AppCompatActivity implements IVideoParamsChan
 
     @Override
     protected void onStop() {
-        MavlinkNative.nativeStop(this);
+        Log.d(TAG, "lifecycle onStop");
         handler.removeCallbacks(runnable);
         unregisterReceivers();
         wfbLinkManager.stopAdapters();
-        videoPlayer.stop();
-        videoPlayer.stopAudio();
         super.onStop();
     }
-
     @Override
     protected void onResume() {
-        registerReceivers();
+        Log.d(TAG, "lifecycle onResume");
 
         wfbLinkManager.setChannel(getChannel(this));
         wfbLinkManager.setBandwidth(getBandwidth(this));
@@ -1504,14 +1320,8 @@ public class VideoActivity extends AppCompatActivity implements IVideoParamsChan
         wfbLinkManager.refreshAdapters();
 
         wfbLinkManager.startAdapters();
-        videoPlayer.start();
-        videoPlayer.startAudio();
 
         osdManager.restoreOSDConfig();
-
-        if (!isVtxMode) {
-            startVpnService();
-        }
 
         super.onResume();
     }
@@ -1546,18 +1356,6 @@ public class VideoActivity extends AppCompatActivity implements IVideoParamsChan
         wfbLinkManager.startAdapters();
     }
 
-    @Override
-    public void onVideoRatioChanged(final int videoW, final int videoH) {
-        lastVideoW = videoW;
-        lastVideoH = videoH;
-
-        Log.d(TAG, "Set resolution: " + videoW + "x" + videoH);
-
-        updateViewRatio(R.id.mainVideo, lastVideoW, lastVideoH);
-        updateViewRatio(R.id.surfaceViewLeft, lastVideoW, lastVideoH);
-        updateViewRatio(R.id.surfaceViewRight, lastVideoW, lastVideoH);
-    }
-
     private void updateViewRatio(int viewId, int videoW, int videoH) {
         if (videoW == 0 || videoH == 0) {
             return;
@@ -1575,91 +1373,8 @@ public class VideoActivity extends AppCompatActivity implements IVideoParamsChan
     }
 
     @Override
-    public void onDecodingInfoChanged(final DecodingInfo decodingInfo) {
-        mDecodingInfo = decodingInfo;
-        runOnUiThread(() -> {
-            if (lastCodec != decodingInfo.nCodec) {
-                lastCodec = decodingInfo.nCodec;
-            }
-            if (decodingInfo.currentFPS > 0) {
-                binding.tvMessage.setVisibility(View.GONE);
-                binding.wifiMessage.setVisibility(View.GONE);
-            }
-            String info = "%dx%d@%.0f " + (decodingInfo.nCodec == 1 ? " H265 " : " H264 ")
-                    + (decodingInfo.currentKiloBitsPerSecond > 1000 ? " %.1fMbps " : " %.1fKpbs ")
-                    + " %.1fms";
-            binding.tvVideoStats.setText(String.format(Locale.US, info,
-                    lastVideoW, lastVideoH, decodingInfo.currentFPS,
-                    decodingInfo.currentKiloBitsPerSecond / 1000,
-                    decodingInfo.avgTotalDecodingTime_ms));
-        });
-    }
-
-    @Override
     public void onWfbNgStatsChanged(WfbNGStats data) {
-        runOnUiThread(() -> {
-            if (data.count_p_all > 0) {
-                binding.tvMessage.setVisibility(View.INVISIBLE);
-                binding.tvMessage.setText("");
-
-                if (data.count_p_dec_err > 0) {
-                    binding.tvLinkStatus.setText("Waiting for session key.");
-                } else {
-                    // NOTE: The order of the entries when being added to the entries array
-                    // determines their position around the center of the chart.
-                    ArrayList<PieEntry> entries = new ArrayList<>();
-                    entries.add(new PieEntry((float) data.count_p_dec_ok / data.count_p_all));
-                    entries.add(new PieEntry((float) data.count_p_fec_recovered / data.count_p_all));
-                    entries.add(new PieEntry((float) data.count_p_lost / data.count_p_all));
-
-                    PieDataSet dataSet = new PieDataSet(entries, "Link Status");
-                    dataSet.setDrawIcons(false);
-                    dataSet.setDrawValues(false);
-
-                    ArrayList<Integer> colors = new ArrayList<>();
-                    colors.add(getColor(R.color.colorGreen));
-                    colors.add(getColor(R.color.colorYellow));
-                    colors.add(getColor(R.color.colorRed));
-                    dataSet.setColors(colors);
-
-                    PieData pieData = new PieData(dataSet);
-                    pieData.setValueFormatter(new PercentFormatter());
-                    pieData.setValueTextSize(11f);
-                    pieData.setValueTextColor(Color.WHITE);
-
-                    int rssiColor = getColor(R.color.colorGreenBg);
-                    if (data.avg_rssi < 60 && 30 <= data.avg_rssi) {
-                        rssiColor = getColor(R.color.colorYellow);
-                    } else if (data.avg_rssi < 30) {
-                        rssiColor = getColor(R.color.colorRed);
-                    }
-
-                    binding.pcLinkStat.setData(pieData);
-                    binding.pcLinkStat.setCenterTextSize(22);
-                    binding.pcLinkStat.setCenterText("" + data.avg_rssi);
-                    binding.pcLinkStat.setCenterTextColor(rssiColor);
-                    binding.pcLinkStat.invalidate();
-
-                    // Set link icon tint color.
-                    int color = getColor(R.color.colorGreenBg);
-                    if ((float) data.count_p_fec_recovered / data.count_p_all > 0.2) {
-                        color = getColor(R.color.colorYellowBg);
-                    }
-                    if (data.count_p_lost > 0) {
-                        color = getColor(R.color.colorRedBg);
-                    }
-                    binding.imgLinkStatus.setImageTintList(ColorStateList.valueOf(color));
-
-                    binding.tvLinkStatus.setText(String.format("Outgoing %3d Decoded %3d Recovered %3d Lost %3d",
-                            data.count_p_outgoing,
-                            data.count_p_dec_ok,
-                            data.count_p_fec_recovered,
-                            data.count_p_lost));
-                }
-            } else {
-                binding.tvLinkStatus.setText("No Video Link");
-            }
-        });
+        // Stats are irrelevant in pure VTX mode
     }
 
     @Override

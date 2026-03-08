@@ -13,266 +13,97 @@ import android.media.MediaCodecInfo;
 import android.media.MediaFormat;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.os.Looper;
 import android.util.Log;
 import android.util.Range;
-import android.util.Size;
 import android.view.Surface;
 
 import androidx.annotation.NonNull;
 
-import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
-import java.util.Collections;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 /**
- * CameraStreamer handles the VTX pipeline:
- * Camera -> MediaCodec (H.264) -> UDP (Localhost:8001)
+ * CameraStreamer — VTX pipeline: Main Camera → MediaCodec H.264 → UDP (localhost:8001).
+ *
+ * Always uses the main camera (ID "0").
+ * All camera and encoder parameters are supplied via {@link CameraConfig}.
  */
 public class CameraStreamer {
     private static final String TAG = "CameraStreamer";
-    private static final String MIME_TYPE = MediaFormat.MIMETYPE_VIDEO_AVC; // H.264
-    private static final int FRAME_RATE = 120;
-    private static final int BITRATE = 4000000; // 4 Mbps for 720p120
-    private static final int WIDTH = 1280;
-    private static final int HEIGHT = 720;
+    private static final int DESTINATION_PORT = 8001;
 
     private final Context context;
     private CameraDevice cameraDevice;
     private CameraCaptureSession captureSession;
     private MediaCodec encoder;
     private Surface encoderSurface;
+    private SurfaceTexture dummySurfaceTexture;
+    private Surface dummySurface;
     private HandlerThread backgroundThread;
     private Handler backgroundHandler;
-
     private DatagramSocket udpSocket;
     private InetAddress destinationAddress;
-    private static final int DESTINATION_PORT = 8001;
+
+    private boolean isStreaming = false;
+    private CameraConfig currentConfig = new CameraConfig();
 
     public CameraStreamer(Context context) {
         this.context = context;
     }
 
-    private boolean isStreaming = false;
+    // ── Public API ────────────────────────────────────────────────────────────
 
-    public void startStreaming(Surface previewSurface) {
-        if (isStreaming) return;
+    public synchronized void startStreaming(Surface previewSurface, CameraConfig config, boolean enablePreview) {
+        if (enablePreview && (previewSurface == null || !previewSurface.isValid())) {
+            Log.e(TAG, "Cannot start: invalid preview surface provided for preview enabled mode");
+            return;
+        }
+        if (isStreaming) stopStreaming();
         isStreaming = true;
-        
-        Log.d(TAG, "Starting VTX stream...");
+        currentConfig = config;
+
+        Log.i(TAG, "Starting: " + config.getSummary() + (enablePreview ? " with preview" : " without preview"));
         startBackgroundThread();
         setupUDP();
         setupEncoder();
-        openCamera(previewSurface);
+        openCamera(previewSurface, enablePreview);
     }
 
-    public void stopStreaming() {
-        if (!isStreaming) return;
+    public synchronized void stopStreaming() {
         isStreaming = false;
-        
-        Log.d(TAG, "Stopping VTX stream...");
-        // Rest of the existing stop logic...
         if (captureSession != null) {
-            captureSession.close();
+            try { captureSession.stopRepeating(); captureSession.close(); } catch (Exception ignored) {}
             captureSession = null;
         }
+        if (dummySurface != null) {
+            dummySurface.release();
+            dummySurface = null;
+        }
+        if (dummySurfaceTexture != null) {
+            dummySurfaceTexture.release();
+            dummySurfaceTexture = null;
+        }
         if (cameraDevice != null) {
-            cameraDevice.close();
+            try {
+                cameraDevice.close();
+            } catch (Exception e) {
+                Log.e(TAG, "Error closing camera", e);
+            }
             cameraDevice = null;
         }
-        if (encoder != null) {
-            encoder.stop();
-            encoder.release();
-            encoder = null;
-        }
-        if (udpSocket != null) {
-            udpSocket.close();
-            udpSocket = null;
-        }
+        if (encoderSurface != null) { encoderSurface.release(); encoderSurface = null; }
+        if (encoder != null) { try { encoder.stop(); encoder.release(); } catch (Exception ignored) {} encoder = null; }
+        if (udpSocket != null) { udpSocket.close(); udpSocket = null; }
         stopBackgroundThread();
     }
 
-    private void setupUDP() {
-        try {
-            udpSocket = new DatagramSocket();
-            destinationAddress = InetAddress.getByName("127.0.0.1");
-        } catch (IOException e) {
-            Log.e(TAG, "UDP Setup failed", e);
-        }
-    }
-
-    private void setupEncoder() {
-        try {
-            encoder = MediaCodec.createEncoderByType(MIME_TYPE);
-            MediaFormat format = MediaFormat.createVideoFormat(MIME_TYPE, WIDTH, HEIGHT);
-
-            format.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface);
-            format.setInteger(MediaFormat.KEY_BIT_RATE, BITRATE);
-            format.setInteger(MediaFormat.KEY_FRAME_RATE, FRAME_RATE);
-            format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1); // 1 second between keyframes
-            
-            // Low latency settings
-            format.setInteger(MediaFormat.KEY_PRIORITY, 0); // Real-time priority
-            format.setInteger(MediaFormat.KEY_BITRATE_MODE, MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR);
-
-            encoder.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
-            encoderSurface = encoder.createInputSurface();
-
-            encoder.setCallback(new MediaCodec.Callback() {
-                private byte[] spsPpsCache = null;
-
-                @Override
-                public void onInputBufferAvailable(@NonNull MediaCodec codec, int index) {
-                    // Not used for Surface input
-                }
-
-                @Override
-                public void onOutputBufferAvailable(@NonNull MediaCodec codec, int index, @NonNull MediaCodec.BufferInfo info) {
-                    ByteBuffer outputBuffer = codec.getOutputBuffer(index);
-                    if (outputBuffer != null && info.size > 0) {
-                        byte[] outData = new byte[info.size];
-                        outputBuffer.get(outData);
-
-                        if ((info.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) {
-                            spsPpsCache = outData;
-                        }
-
-                        // Log I-frame occurrences to verify KEY_I_FRAME_INTERVAL behavior
-                        if ((info.flags & MediaCodec.BUFFER_FLAG_KEY_FRAME) != 0) {
-                            Log.i(TAG, "I-frame: size=" + info.size + " pts=" + info.presentationTimeUs);
-                            if (spsPpsCache != null) {
-                                sendOverUDP(spsPpsCache);
-                            }
-                        }
-                        
-                        sendOverUDP(outData);
-                    }
-                    codec.releaseOutputBuffer(index, false);
-                }
-
-                @Override
-                public void onError(@NonNull MediaCodec codec, @NonNull MediaCodec.CodecException e) {
-                    Log.e(TAG, "Encoder Error", e);
-                }
-
-                @Override
-                public void onOutputFormatChanged(@NonNull MediaCodec codec, @NonNull MediaFormat format) {
-                    Log.d(TAG, "Encoder Format Changed: " + format);
-                }
-            }, backgroundHandler);
-
-            encoder.start();
-        } catch (IOException e) {
-            Log.e(TAG, "Encoder setup failed", e);
-        }
-    }
-
-    // wfb-ng MAX_PAYLOAD_SIZE is ~3993 bytes. Each UDP packet sent to wfb_tx
-    // becomes one wfb-ng data unit, reconstructed intact on the GS side.
-    // Do NOT fragment here — wfb_tx handles FEC/fragmentation internally.
-    // NAL units larger than this limit must be split at NAL boundaries.
-    private static final int MAX_WFB_PAYLOAD = 3993;
-
-    private void sendOverUDP(byte[] data) {
-        if (udpSocket == null || data == null) return;
-        try {
-            if (data.length <= MAX_WFB_PAYLOAD) {
-                // Common case: NAL unit fits in one wfb-ng packet
-                DatagramPacket packet = new DatagramPacket(data, 0, data.length, destinationAddress, DESTINATION_PORT);
-                udpSocket.send(packet);
-            } else {
-                // Rare case: very large NAL unit (e.g. IDR frame).
-                // Split into chunks. wfb-ng will deliver each as a separate
-                // UDP packet on the GS, so the receiver must handle reassembly.
-                int offset = 0;
-                while (offset < data.length) {
-                    int chunkSize = Math.min(MAX_WFB_PAYLOAD, data.length - offset);
-                    DatagramPacket packet = new DatagramPacket(data, offset, chunkSize, destinationAddress, DESTINATION_PORT);
-                    udpSocket.send(packet);
-                    offset += chunkSize;
-                }
-            }
-        } catch (IOException e) {
-            Log.e(TAG, "Failed to send UDP packet", e);
-        }
-    }
-
-    @SuppressLint("MissingPermission")
-    private void openCamera(Surface previewSurface) {
-        CameraManager manager = (CameraManager) context.getSystemService(Context.CAMERA_SERVICE);
-        try {
-            String[] cameraIdList = manager.getCameraIdList();
-            if (cameraIdList.length == 0) {
-                Log.e(TAG, "No cameras found on device!");
-                return;
-            }
-            String cameraId = cameraIdList[0]; // Default to back camera
-            Log.d(TAG, "Opening camera: " + cameraId);
-            manager.openCamera(cameraId, new CameraDevice.StateCallback() {
-                @Override
-                public void onOpened(@NonNull CameraDevice camera) {
-                    cameraDevice = camera;
-                    createCaptureSession(previewSurface);
-                }
-
-                @Override
-                public void onDisconnected(@NonNull CameraDevice camera) {
-                    camera.close();
-                    cameraDevice = null;
-                }
-
-                @Override
-                public void onError(@NonNull CameraDevice camera, int error) {
-                    camera.close();
-                    cameraDevice = null;
-                }
-            }, backgroundHandler);
-        } catch (CameraAccessException e) {
-            Log.e(TAG, "Camera open failed", e);
-        }
-    }
-
-    private void createCaptureSession(Surface previewSurface) {
-        try {
-            final CaptureRequest.Builder builder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_RECORD);
-            builder.addTarget(previewSurface);
-            builder.addTarget(encoderSurface);
-
-            // Use ConstrainedHighSpeedCaptureSession for 120/240 FPS
-            cameraDevice.createConstrainedHighSpeedCaptureSession(java.util.Arrays.asList(previewSurface, encoderSurface),
-                new CameraCaptureSession.StateCallback() {
-                    @Override
-                    public void onConfigured(@NonNull CameraCaptureSession session) {
-                        captureSession = session;
-                        try {
-                            builder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(FRAME_RATE, FRAME_RATE));
-                            builder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO);
-                            
-                            // High-speed sessions require a repeating burst list
-                            if (session instanceof android.hardware.camera2.CameraConstrainedHighSpeedCaptureSession) {
-                                android.hardware.camera2.CameraConstrainedHighSpeedCaptureSession hsSession = 
-                                    (android.hardware.camera2.CameraConstrainedHighSpeedCaptureSession) session;
-                                captureSession.setRepeatingBurst(hsSession.createHighSpeedRequestList(builder.build()), null, backgroundHandler);
-                                Log.i(TAG, "High-speed repeating burst started at " + FRAME_RATE + " FPS");
-                            } else {
-                                captureSession.setRepeatingRequest(builder.build(), null, backgroundHandler);
-                            }
-                        } catch (CameraAccessException e) {
-                            Log.e(TAG, "Capture Request failed", e);
-                        }
-                    }
-
-                    @Override
-                    public void onConfigureFailed(@NonNull CameraCaptureSession session) {
-                        Log.e(TAG, "Capture Session configuration failed");
-                    }
-                }, backgroundHandler);
-        } catch (CameraAccessException e) {
-            Log.e(TAG, "Capture Session creation failed", e);
-        }
-    }
+    // ── Background thread ──────────────────────────────────────────────────
 
     private void startBackgroundThread() {
         backgroundThread = new HandlerThread("CameraBackground");
@@ -283,15 +114,314 @@ public class CameraStreamer {
     private void stopBackgroundThread() {
         if (backgroundThread != null) {
             backgroundThread.quitSafely();
-            try {
-                backgroundThread.join();
-                backgroundThread = null;
-                backgroundHandler = null;
-            } catch (InterruptedException e) {
-                Log.e(TAG, "Background Thread join interrupted", e);
-            }
+            try { backgroundThread.join(); } catch (InterruptedException ignored) {}
+            backgroundThread = null;
+            backgroundHandler = null;
         }
     }
 
+    // ── Callbacks ───────────────────────────────────────────────────────────
+    
+    public interface LatencyCallback {
+        void onLatencyUpdate(int rawLatencyMs, int avgLatencyMs);
+    }
 
+    private LatencyCallback latencyCallback;
+    
+    public void setLatencyCallback(LatencyCallback callback) {
+        this.latencyCallback = callback;
+    }
+
+    // ── Setup ────────────────────────────────────────────────────────────────
+
+    private void setupUDP() {
+        try {
+            udpSocket = new DatagramSocket();
+            destinationAddress = InetAddress.getByName("127.0.0.1");
+        } catch (Exception e) {
+            Log.e(TAG, "UDP setup failed", e);
+        }
+    }
+
+    // ── Encoder ───────────────────────────────────────────────────────────
+
+    private void setupEncoder() {
+        CameraConfig cfg = currentConfig;
+        String mime = "h265".equalsIgnoreCase(cfg.encoder.codec)
+                ? MediaFormat.MIMETYPE_VIDEO_HEVC
+                : MediaFormat.MIMETYPE_VIDEO_AVC;
+        try {
+            encoder = MediaCodec.createEncoderByType(mime);
+            MediaFormat fmt = MediaFormat.createVideoFormat(mime, cfg.camera.width, cfg.camera.height);
+            fmt.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface);
+            fmt.setInteger(MediaFormat.KEY_BIT_RATE, cfg.encoder.bitrate);
+            fmt.setInteger(MediaFormat.KEY_FRAME_RATE, cfg.camera.fps);
+            fmt.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, cfg.encoder.keyframeInterval);
+            if (cfg.encoder.encoderPriority > 0) {
+                fmt.setInteger(MediaFormat.KEY_PRIORITY, cfg.encoder.encoderPriority);
+            }
+            if (cfg.encoder.encoderLatency > 0) {
+                fmt.setInteger(MediaFormat.KEY_LATENCY, cfg.encoder.encoderLatency);
+            }
+            // Some drivers hate KEY_MAX_B_FRAMES if it's 0 (even though 0 is default baseline), so omit if 0
+            if (cfg.encoder.bFrames > 0) {
+                fmt.setInteger(MediaFormat.KEY_MAX_B_FRAMES, cfg.encoder.bFrames);
+            }
+            int bitrateMode = (cfg.encoder.bitrateMode == 0) ? 
+                    MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR : 
+                    MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_VBR;
+            fmt.setInteger(MediaFormat.KEY_BITRATE_MODE, bitrateMode);
+            // If operating rate is greater than 0, set it to pre-allocate hardware resources.
+            if (cfg.encoder.operatingRate > 0) {
+                fmt.setInteger(MediaFormat.KEY_OPERATING_RATE, cfg.encoder.operatingRate);
+            } else {
+                fmt.setInteger(MediaFormat.KEY_OPERATING_RATE, cfg.camera.fps);
+            }
+            if (cfg.encoder.intraRefreshPeriod > 0) {
+                fmt.setInteger(MediaFormat.KEY_INTRA_REFRESH_PERIOD, cfg.encoder.intraRefreshPeriod);
+            }
+            if (cfg.encoder.codecProfile > 0) {
+                fmt.setInteger(MediaFormat.KEY_PROFILE, cfg.encoder.codecProfile);
+            }
+            if (cfg.encoder.codecLevel > 0) {
+                fmt.setInteger(MediaFormat.KEY_LEVEL, cfg.encoder.codecLevel);
+            }
+            
+            // --- AGGRESSIVE LOW LATENCY OVERRIDES REMOVED ---
+            // The HEVC (H.265) hardware encoder explicitly crashes when
+            // these flags are present, and they had no measurable effect on H.264.
+            
+            encoder.configure(fmt, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
+        } catch (Exception e) {
+            // Safe fallback: minimal H.264 settings
+            Log.e(TAG, "Encoder configure failed, using safe defaults: " + e.getMessage());
+            try {
+                if (encoder != null) { try { encoder.release(); } catch (Exception ignored) {} }
+                encoder = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC);
+                MediaFormat safe = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, cfg.camera.width, cfg.camera.height);
+                safe.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface);
+                safe.setInteger(MediaFormat.KEY_BIT_RATE, 4_000_000);
+                safe.setInteger(MediaFormat.KEY_FRAME_RATE, cfg.camera.fps);
+                safe.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1);
+                encoder.configure(safe, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
+                Log.i(TAG, "Encoder started with safe fallback settings");
+            } catch (Exception e2) {
+                Log.e(TAG, "Encoder fallback also failed", e2);
+                return;
+            }
+        }
+
+        encoderSurface = encoder.createInputSurface();
+
+        encoder.setCallback(new MediaCodec.Callback() {
+            private byte[] spsPpsCache = null;
+            private final ArrayList<Integer> latencyHistory = new ArrayList<>(30);
+            private int frameCount = 0;
+
+            @Override
+            public void onInputBufferAvailable(@NonNull MediaCodec codec, int index) {}
+
+            @Override
+            public void onOutputBufferAvailable(@NonNull MediaCodec codec, int index,
+                                                @NonNull MediaCodec.BufferInfo info) {
+                // Calculate hardware encoding latency: current time vs time camera sensor finished the frame
+                long currentRealtimeUs = android.os.SystemClock.elapsedRealtimeNanos() / 1000;
+                int latencyMs = (int) ((currentRealtimeUs - info.presentationTimeUs) / 1000);
+                
+                frameCount++;
+                if (frameCount % 60 == 0) {
+                    Log.d(TAG, "Raw PTS info: currentUs=" + currentRealtimeUs + ", ptsUs=" + info.presentationTimeUs + ", latMs=" + latencyMs);
+                }
+
+                if (latencyMs > 0 && latencyMs < 2000) { // Filter out invalid large deltas
+                    latencyHistory.add(latencyMs);
+                    if (latencyHistory.size() > 30) latencyHistory.remove(0);
+                    
+                    int sum = 0;
+                    for (int lat : latencyHistory) sum += lat;
+                    int avgLatencyMs = sum / latencyHistory.size();
+                    
+                    if (frameCount % 60 == 0) {
+                        Log.d(TAG, "Encoder Latency: raw=" + latencyMs + "ms, avg=" + avgLatencyMs + "ms");
+                    }
+                    
+                    if (latencyCallback != null) {
+                        // Switch to UI thread to update VideoActivity
+                        new Handler(Looper.getMainLooper()).post(() -> 
+                            latencyCallback.onLatencyUpdate(latencyMs, avgLatencyMs)
+                        );
+                    }
+                }
+
+                ByteBuffer buf = codec.getOutputBuffer(index);
+                if (buf != null && info.size > 0) {
+                    byte[] data = new byte[info.size];
+                    buf.get(data);
+                    if ((info.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) spsPpsCache = data;
+                    if ((info.flags & MediaCodec.BUFFER_FLAG_KEY_FRAME) != 0 && spsPpsCache != null)
+                        sendOverUDP(spsPpsCache);
+                    sendOverUDP(data);
+                }
+                codec.releaseOutputBuffer(index, false);
+            }
+
+            @Override
+            public void onError(@NonNull MediaCodec codec, @NonNull MediaCodec.CodecException e) {
+                Log.e(TAG, "Encoder error", e);
+            }
+
+            @Override
+            public void onOutputFormatChanged(@NonNull MediaCodec codec, @NonNull MediaFormat format) {
+                Log.d(TAG, "Encoder format changed: " + format);
+            }
+        }, backgroundHandler);
+
+        encoder.start();
+    }
+
+    // ── Camera ────────────────────────────────────────────────────────────
+
+    @SuppressLint("MissingPermission")
+    private void openCamera(Surface previewSurface, boolean enablePreview) {
+        try {
+            CameraManager manager = (CameraManager) context.getSystemService(Context.CAMERA_SERVICE);
+            manager.openCamera(currentConfig.camera.cameraId, new CameraDevice.StateCallback() {
+                @Override
+                public void onOpened(@NonNull CameraDevice camera) {
+                    cameraDevice = camera;
+                    createCaptureSession(previewSurface, enablePreview);
+                }
+                @Override
+                public void onDisconnected(@NonNull CameraDevice camera) {
+                    camera.close(); cameraDevice = null;
+                }
+                @Override
+                public void onError(@NonNull CameraDevice camera, int error) {
+                    camera.close(); cameraDevice = null;
+                    Log.e(TAG, "Camera error: " + error);
+                }
+            }, backgroundHandler);
+        } catch (CameraAccessException e) {
+            Log.e(TAG, "Failed to open camera", e);
+        }
+    }
+
+    private void createCaptureSession(Surface previewSurface, boolean enablePreview) {
+        if (encoderSurface == null) { Log.e(TAG, "Encoder surface null"); return; }
+        try {
+            final CameraConfig cfg = currentConfig;
+            final CaptureRequest.Builder builder =
+                    cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_RECORD);
+            
+            Surface effectivePreviewSurface = null;
+            if (enablePreview && previewSurface != null) {
+                effectivePreviewSurface = previewSurface;
+            } else {
+                // To bypass Android HAL capping FPS to 60 when no preview is attached
+                if (dummySurfaceTexture != null) dummySurfaceTexture.release();
+                if (dummySurface != null) dummySurface.release();
+                dummySurfaceTexture = new SurfaceTexture(0);
+                dummySurfaceTexture.setDefaultBufferSize(cfg.camera.width, cfg.camera.height);
+                dummySurface = new Surface(dummySurfaceTexture);
+                effectivePreviewSurface = dummySurface;
+            }
+
+            builder.addTarget(effectivePreviewSurface);
+            builder.addTarget(encoderSurface);
+
+            // Apply all CameraConfig fields
+            builder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(cfg.camera.fps, cfg.camera.fps));
+            builder.set(CaptureRequest.CONTROL_AF_MODE, cfg.camera.afMode);
+            builder.set(CaptureRequest.CONTROL_AE_LOCK, cfg.camera.aeLocked);
+            builder.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, cfg.camera.aeCompensation);
+            builder.set(CaptureRequest.NOISE_REDUCTION_MODE, cfg.camera.noiseReduction);
+            builder.set(CaptureRequest.EDGE_MODE, cfg.camera.edgeMode);
+            builder.set(CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE, cfg.camera.videoStabilization ? 1 : 0);
+            builder.set(CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE, cfg.camera.opticalStabilizationMode);
+            
+            // AWB Controls
+            builder.set(CaptureRequest.CONTROL_AWB_MODE, cfg.camera.awbMode);
+            builder.set(CaptureRequest.CONTROL_AWB_LOCK, cfg.camera.awbLocked);
+            
+            // ISP Tuning
+            builder.set(CaptureRequest.TONEMAP_MODE, cfg.camera.tonemapMode);
+            builder.set(CaptureRequest.SHADING_MODE, cfg.camera.lensShadingMode);
+            builder.set(CaptureRequest.HOT_PIXEL_MODE, cfg.camera.hotPixelMode);
+            
+            if (cfg.camera.iso > 0) {
+                builder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_OFF);
+                builder.set(CaptureRequest.SENSOR_SENSITIVITY, cfg.camera.iso);
+            }
+            if (cfg.camera.shutterSpeed > 0) {
+                builder.set(CaptureRequest.SENSOR_EXPOSURE_TIME, cfg.camera.shutterSpeed);
+            }
+
+            List<Surface> surfaces = Arrays.asList(effectivePreviewSurface, encoderSurface);
+
+            if (false && cfg.requiresHighSpeedSession()) { // Disable HighSpeed session to avoid 8-frame Burst batching (33ms latency)
+                cameraDevice.createConstrainedHighSpeedCaptureSession(surfaces,
+                    new CameraCaptureSession.StateCallback() {
+                        @Override
+                        public void onConfigured(@NonNull CameraCaptureSession session) {
+                            captureSession = session;
+                            try {
+                                android.hardware.camera2.CameraConstrainedHighSpeedCaptureSession hs =
+                                        (android.hardware.camera2.CameraConstrainedHighSpeedCaptureSession) session;
+                                session.setRepeatingBurst(hs.createHighSpeedRequestList(builder.build()),
+                                        null, backgroundHandler);
+                                Log.i(TAG, "HS session started @ " + cfg.camera.fps + " FPS");
+                            } catch (CameraAccessException e) {
+                                Log.e(TAG, "HS capture request failed", e);
+                            }
+                        }
+                        @Override
+                        public void onConfigureFailed(@NonNull CameraCaptureSession session) {
+                            Log.e(TAG, "HS session configure failed");
+                        }
+                    }, backgroundHandler);
+            } else {
+                cameraDevice.createCaptureSession(surfaces,
+                    new CameraCaptureSession.StateCallback() {
+                        @Override
+                        public void onConfigured(@NonNull CameraCaptureSession session) {
+                            captureSession = session;
+                            try {
+                                session.setRepeatingRequest(builder.build(), null, backgroundHandler);
+                                Log.i(TAG, "Standard session started @ " + cfg.camera.fps + " FPS");
+                            } catch (CameraAccessException e) {
+                                Log.e(TAG, "Capture request failed", e);
+                            }
+                        }
+                        @Override
+                        public void onConfigureFailed(@NonNull CameraCaptureSession session) {
+                            Log.e(TAG, "Standard session configure failed");
+                        }
+                    }, backgroundHandler);
+            }
+        } catch (CameraAccessException e) {
+            Log.e(TAG, "Capture session creation failed", e);
+        }
+    }
+
+    // ── UDP send with WFB-ng payload limit ────────────────────────────────
+
+    private static final int MAX_WFB_PAYLOAD = 3993;
+
+    private void sendOverUDP(byte[] data) {
+        if (udpSocket == null || data == null) return;
+        try {
+            if (data.length <= MAX_WFB_PAYLOAD) {
+                udpSocket.send(new DatagramPacket(data, 0, data.length, destinationAddress, DESTINATION_PORT));
+            } else {
+                int offset = 0;
+                while (offset < data.length) {
+                    int chunk = Math.min(MAX_WFB_PAYLOAD, data.length - offset);
+                    udpSocket.send(new DatagramPacket(data, offset, chunk, destinationAddress, DESTINATION_PORT));
+                    offset += chunk;
+                }
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "UDP send failed", e);
+        }
+    }
 }

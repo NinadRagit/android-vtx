@@ -1,0 +1,17 @@
+{
+  "profileName": "Balanced 1080p 30fps",
+  "description": "Good quality and latency balance. Works on all cameras.",
+  "profileVersion": 1,
+  "camera2": {
+    "width": 1920, "height": 1080, "fps": 30,
+    "aeLocked": false, "aeCompensation": 0, "afMode": 3,
+    "edgeMode": 1, "noiseReduction": 1,
+    "videoStabilization": false, "iso": 0, "shutterSpeed": 0
+  },
+  "encoder": {
+    "codec": "h264", "bitrate": 8000000, "bitrateMode": 0,
+    "keyframeInterval": 1, "intraRefreshPeriod": 0, "bFrames": 0,
+    "encoderLatency": 0, "encoderPriority": 0, "operatingRate": 30,
+    "h264Profile": 2, "h264Level": 40
+  }
+}

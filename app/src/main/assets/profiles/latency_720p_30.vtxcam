@@ -1,0 +1,17 @@
+{
+  "profileName": "Low Latency 720p 30fps",
+  "description": "Low latency for any camera: ISP off, AE locked, realtime encoder.",
+  "profileVersion": 1,
+  "camera2": {
+    "width": 1280, "height": 720, "fps": 30,
+    "aeLocked": true, "aeCompensation": 0, "afMode": 0,
+    "edgeMode": 0, "noiseReduction": 0,
+    "videoStabilization": false, "iso": 0, "shutterSpeed": 0
+  },
+  "encoder": {
+    "codec": "h264", "bitrate": 4000000, "bitrateMode": 0,
+    "keyframeInterval": 1, "intraRefreshPeriod": 15, "bFrames": 0,
+    "encoderLatency": 0, "encoderPriority": 0, "operatingRate": 30,
+    "h264Profile": 1, "h264Level": 0
+  }
+}

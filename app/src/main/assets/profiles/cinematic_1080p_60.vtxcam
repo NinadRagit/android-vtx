@@ -1,0 +1,17 @@
+{
+  "profileName": "Cinematic 1080p 60fps",
+  "description": "Smooth cinematic 60fps: HS session, balanced ISP, high bitrate. Main camera only.",
+  "profileVersion": 1,
+  "camera2": {
+    "width": 1920, "height": 1080, "fps": 60,
+    "aeLocked": false, "aeCompensation": 0, "afMode": 3,
+    "edgeMode": 1, "noiseReduction": 1,
+    "videoStabilization": false, "iso": 0, "shutterSpeed": 0
+  },
+  "encoder": {
+    "codec": "h264", "bitrate": 10000000, "bitrateMode": 0,
+    "keyframeInterval": 1, "intraRefreshPeriod": 30, "bFrames": 0,
+    "encoderLatency": 0, "encoderPriority": 0, "operatingRate": 60,
+    "h264Profile": 2, "h264Level": 41
+  }
+}

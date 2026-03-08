@@ -15,50 +15,6 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <SurfaceView
-        android:id="@+id/surfaceViewLeft"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        app:layout_constraintDimensionRatio="4:3"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toStartOf="@id/surfaceViewRight"/>
-
-    <SurfaceView
-        android:id="@+id/surfaceViewRight"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        app:layout_constraintDimensionRatio="4:3"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toEndOf="@+id/surfaceViewLeft"
-        app:layout_constraintEnd_toEndOf="parent"/>
-
-    <SeekBar
-        android:id="@+id/seekBar"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        app:layout_constraintTop_toBottomOf="@+id/surfaceViewLeft"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginStart="300dp"
-        android:layout_marginEnd="300dp"
-        android:visibility="gone"
-        android:max="20" />
-
-    <SeekBar
-        android:id="@+id/distanceSeekBar"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        app:layout_constraintTop_toBottomOf="@+id/seekBar"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginStart="300dp"
-        android:layout_marginEnd="300dp"
-        android:visibility="gone"
-        android:max="20"  />
-
     <Button
         android:id="@+id/btnSettings"
         style="@style/Widget.Material3.Button.IconButton"
@@ -66,6 +22,26 @@
         android:layout_height="wrap_content"
         app:icon="@drawable/baseline_settings_24"
         app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <ToggleButton
+        android:id="@+id/btnStreamToggle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textOn="STOP STREAM"
+        android:textOff="START STREAM"
+        android:checked="true"
+        app:layout_constraintStart_toEndOf="@id/btnSettings"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <ToggleButton
+        android:id="@+id/btnPreviewToggle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textOn="PREVIEW ON"
+        android:textOff="PREVIEW OFF"
+        android:checked="true"
+        app:layout_constraintStart_toEndOf="@id/btnStreamToggle"
         app:layout_constraintTop_toTopOf="parent" />
 
     <TextView
@@ -109,31 +85,6 @@
         app:layout_constraintVertical_bias="1.0">
 
         <com.openipc.pixelpilot.osd.MovableLayout
-            android:id="@+id/itemVideoStats"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:gravity="start"
-            android:orientation="horizontal"
-            android:visibility="visible">
-
-            <ImageView
-                android:id="@+id/imgVideoStats"
-                android:layout_width="16dp"
-                android:layout_height="38dp"
-                android:src="@drawable/baseline_personal_video_24" />
-
-            <TextView
-                android:id="@+id/tvVideoStats"
-                android:layout_width="wrap_content"
-                android:layout_height="38dp"
-                android:layout_marginStart="5dp"
-                android:gravity="start|center_vertical"
-                android:text="Video Decoding Stats"
-                android:textColor="@color/colorWhite"
-                android:textSize="14sp" />
-        </com.openipc.pixelpilot.osd.MovableLayout>
-
-        <com.openipc.pixelpilot.osd.MovableLayout
             android:id="@+id/itemRecIndicator"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -150,26 +101,12 @@
         </com.openipc.pixelpilot.osd.MovableLayout>
 
         <com.openipc.pixelpilot.osd.MovableLayout
-            android:id="@+id/itemLinkStatusChart"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:gravity="start"
-            android:orientation="horizontal"
-            android:visibility="visible">
-
-            <com.github.mikephil.charting.charts.PieChart
-                android:id="@+id/pcLinkStat"
-                android:layout_width="65dp"
-                android:layout_height="65dp" />
-        </com.openipc.pixelpilot.osd.MovableLayout>
-
-        <com.openipc.pixelpilot.osd.MovableLayout
             android:id="@+id/itemLinkStatus"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:gravity="start"
             android:orientation="horizontal"
-            android:visibility="visible">
+            android:visibility="gone">
 
             <ImageView
                 android:id="@+id/imgLinkStatus"
@@ -679,6 +616,56 @@
                 android:layout_marginStart="5dp"
                 android:gravity="start|center_vertical"
                 android:text="100%"
+                android:textColor="@color/colorWhite"
+                android:textSize="14sp" />
+        </com.openipc.pixelpilot.osd.MovableLayout>
+
+        <com.openipc.pixelpilot.osd.MovableLayout
+            android:id="@+id/itemEncLatencyAvg"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="start"
+            android:orientation="horizontal"
+            android:visibility="visible">
+
+            <ImageView
+                android:id="@+id/imgEncLatencyAvg"
+                android:layout_width="16dp"
+                android:layout_height="38dp"
+                android:src="@drawable/timer" />
+
+            <TextView
+                android:id="@+id/tvEncLatencyAvg"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_marginStart="5dp"
+                android:gravity="start|center_vertical"
+                android:text="0 ms"
+                android:textColor="@color/colorWhite"
+                android:textSize="14sp" />
+        </com.openipc.pixelpilot.osd.MovableLayout>
+        
+        <com.openipc.pixelpilot.osd.MovableLayout
+            android:id="@+id/itemEncLatencyRaw"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="start"
+            android:orientation="horizontal"
+            android:visibility="gone">
+
+            <ImageView
+                android:id="@+id/imgEncLatencyRaw"
+                android:layout_width="16dp"
+                android:layout_height="38dp"
+                android:src="@drawable/timer" />
+
+            <TextView
+                android:id="@+id/tvEncLatencyRaw"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_marginStart="5dp"
+                android:gravity="start|center_vertical"
+                android:text="0 ms (raw)"
                 android:textColor="@color/colorWhite"
                 android:textSize="14sp" />
         </com.openipc.pixelpilot.osd.MovableLayout>
