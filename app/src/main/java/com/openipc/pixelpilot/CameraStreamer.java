@@ -232,7 +232,6 @@ public class CameraStreamer {
             private byte[] spsPpsCache = null;
             private final ArrayList<Integer> latencyHistory = new ArrayList<>(30);
             private int frameCount = 0;
-            private long ptsOffsetUs = 0;
 
             @Override
             public void onInputBufferAvailable(@NonNull MediaCodec codec, int index) {}
@@ -240,44 +239,34 @@ public class CameraStreamer {
             @Override
             public void onOutputBufferAvailable(@NonNull MediaCodec codec, int index,
                                                 @NonNull MediaCodec.BufferInfo info) {
-                // Calculate calibrated latency: current time vs (camera PTS + detected offset)
+                // Calculate hardware encoding latency: delta between now and the camera capture timestamp.
                 long currentRealtimeUs = android.os.SystemClock.elapsedRealtimeNanos() / 1000;
-                if (ptsOffsetUs == 0) {
-                    long rawDeltaUs = currentRealtimeUs - info.presentationTimeUs;
-                    if (Math.abs(rawDeltaUs) > 10_000_000) { // > 10 seconds difference?
-                        ptsOffsetUs = rawDeltaUs; // Fallback to relative measurement
-                        Log.i(TAG, "Clock epoch mismatch detected. Calibrating offset: " + ptsOffsetUs);
-                    } else {
-                        ptsOffsetUs = 0; // Use raw delta directly (same epoch)
-                    }
-                    // Prevent repeated checks: set a small non-zero value if it was decided to be 0
-                    if (ptsOffsetUs == 0) ptsOffsetUs = 1; 
-                }
-                
-                long calibratedPtsUs = info.presentationTimeUs + (ptsOffsetUs == 1 ? 0 : ptsOffsetUs);
-                int latencyMs = (int) ((currentRealtimeUs - calibratedPtsUs) / 1000);
-                
+                int latencyMs = (int) ((currentRealtimeUs - info.presentationTimeUs) / 1000);
+
                 frameCount++;
-                if (latencyMs > -100 && latencyMs < 500) { // Sane filter allowing for slight negative drift
-                    latencyHistory.add(Math.max(0, latencyMs)); // Don't add negative values to average
+                // Filter out invalid values (codec-config frames have PTS=0 giving huge deltas,
+                // genuine latency for any reasonable encoder is under 2000ms)
+                if (latencyMs > 0 && latencyMs < 2000) {
+                    latencyHistory.add(latencyMs);
                     if (latencyHistory.size() > 30) latencyHistory.remove(0);
-                    
+
                     int sum = 0;
                     for (int lat : latencyHistory) sum += lat;
                     int avgLatencyMs = sum / latencyHistory.size();
-                    
+
                     if (frameCount % 60 == 0) {
-                        // Send rolling average to Ground Station as "EncLat"
                         try {
                             com.openipc.mavlink.MavlinkNative.nativeSendNamedValueFloat("EncLat", (float) avgLatencyMs);
                         } catch (UnsatisfiedLinkError e) {
                             Log.w(TAG, "Mavlink native library not loaded yet");
                         }
                     }
-                    
+
                     if (latencyCallback != null) {
-                        new Handler(Looper.getMainLooper()).post(() -> 
-                            latencyCallback.onLatencyUpdate(latencyMs, avgLatencyMs)
+                        final int rawLat = latencyMs;
+                        final int avgLat = avgLatencyMs;
+                        new Handler(Looper.getMainLooper()).post(() ->
+                            latencyCallback.onLatencyUpdate(rawLat, avgLat)
                         );
                     }
                 }
