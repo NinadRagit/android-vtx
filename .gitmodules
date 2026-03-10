@@ -3,3 +3,6 @@
 	url = https://github.com/svpcom/wfb-ng.git
 	branch = master
 
+[submodule "app/mavlink/src/main/cpp/mavlink-router"]
+	path = app/mavlink/src/main/cpp/mavlink-router
+	url = https://github.com/mavlink-router/mavlink-router.git

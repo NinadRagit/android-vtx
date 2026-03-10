@@ -232,8 +232,6 @@ public class CameraStreamer {
             private byte[] spsPpsCache = null;
             private final ArrayList<Integer> latencyHistory = new ArrayList<>(30);
             private int frameCount = 0;
-            private long epochOffsetUs = 0;
-            private boolean clockInitialized = false;
 
             @Override
             public void onInputBufferAvailable(@NonNull MediaCodec codec, int index) {}
@@ -241,51 +239,38 @@ public class CameraStreamer {
             @Override
             public void onOutputBufferAvailable(@NonNull MediaCodec codec, int index,
                                                 @NonNull MediaCodec.BufferInfo info) {
-                // Calculate hardware encoding latency: delta between now and the camera capture timestamp.
-                long currentRealtimeUs = android.os.SystemClock.elapsedRealtimeNanos() / 1000;
-                // presentationTimeUs may be in a different clock epoch than SystemClock on some devices.
-                // Calibrate once on the first real (non-config) frame, then use the epoch offset
-                // so that subsequent frames reflect only the actual encoding latency.
-                if ((info.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) == 0 && info.presentationTimeUs > 0) {
-                    if (!clockInitialized) {
-                        long rawDeltaUs = currentRealtimeUs - info.presentationTimeUs;
-                        // Epoch offset = full delta minus the expected ~50ms encoding latency.
-                        // This leaves the real hardware latency measurable on every subsequent frame.
-                        epochOffsetUs = rawDeltaUs - 50_000; // subtract 50ms expected base latency
-                        clockInitialized = true;
-                        Log.i(TAG, "Clock calibrated: epochOffsetUs=" + epochOffsetUs + " rawDeltaMs=" + (rawDeltaUs / 1000));
-                    }
+                // Camera2 PTS is on CLOCK_MONOTONIC (pauses during sleep).
+                // SystemClock.uptimeMillis() is also CLOCK_MONOTONIC — same domain, no calibration needed.
+                // elapsedRealtimeNanos() (CLOCK_BOOTTIME) would include sleep time and cause a large epoch gap.
+                long currentUptimeUs = android.os.SystemClock.uptimeMillis() * 1000L;
+                int latencyMs = (int) ((currentUptimeUs - info.presentationTimeUs) / 1000);
 
-                    long calibratedPtsUs = info.presentationTimeUs + epochOffsetUs;
-                    int latencyMs = (int) ((currentRealtimeUs - calibratedPtsUs) / 1000);
+                frameCount++;
+                // Filter out invalid values: codec-config frames have ptsUs=0 (huge positive delta)
+                // and genuine HW encoder latency is always well under 500ms
+                if (latencyMs > 0 && latencyMs < 500) {
+                    latencyHistory.add(latencyMs);
+                    if (latencyHistory.size() > 30) latencyHistory.remove(0);
 
-                    frameCount++;
-                    if (latencyMs > 0 && latencyMs < 500) {
-                        latencyHistory.add(latencyMs);
-                        if (latencyHistory.size() > 30) latencyHistory.remove(0);
+                    int sum = 0;
+                    for (int lat : latencyHistory) sum += lat;
+                    int avgLatencyMs = sum / latencyHistory.size();
 
-                        int sum = 0;
-                        for (int lat : latencyHistory) sum += lat;
-                        int avgLatencyMs = sum / latencyHistory.size();
-
-                        if (frameCount % 60 == 0) {
-                            try {
-                                com.openipc.mavlink.MavlinkNative.nativeSendNamedValueFloat("EncLat", (float) avgLatencyMs);
-                            } catch (UnsatisfiedLinkError e) {
-                                Log.w(TAG, "Mavlink native library not loaded yet");
-                            }
-                        }
-
-                        if (latencyCallback != null) {
-                            final int rawLat = latencyMs;
-                            final int avgLat = avgLatencyMs;
-                            new Handler(Looper.getMainLooper()).post(() ->
-                                latencyCallback.onLatencyUpdate(rawLat, avgLat)
-                            );
+                    if (frameCount % 60 == 0) {
+                        try {
+                            com.openipc.mavlink.MavlinkNative.nativeSendNamedValueFloat("EncLat", (float) avgLatencyMs);
+                        } catch (UnsatisfiedLinkError e) {
+                            Log.w(TAG, "Mavlink native library not loaded yet");
                         }
                     }
-                } else {
-                    frameCount++;
+
+                    if (latencyCallback != null) {
+                        final int rawLat = latencyMs;
+                        final int avgLat = avgLatencyMs;
+                        new Handler(Looper.getMainLooper()).post(() ->
+                            latencyCallback.onLatencyUpdate(rawLat, avgLat)
+                        );
+                    }
                 }
 
                 ByteBuffer buf = codec.getOutputBuffer(index);
