@@ -18,4 +18,9 @@ public class MavlinkNative {
     // TODO: Use message queue from cpp for performance#
     // This initiates a 'call back' for the IVideoParams
     public static native <T extends MavlinkUpdate> void nativeCallBack(T t);
+
+    /**
+     * Pull the latest encoder latency (calculated in C++) for the local UI.
+     */
+    public static native float nativeGetEncoderLatency();
 }

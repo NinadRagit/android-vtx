@@ -27,6 +27,7 @@ import android.util.Size;
 import android.util.Base64;
 import android.util.DisplayMetrics;
 import android.util.Log;
+import android.view.Surface;
 import java.util.List;
 import android.view.MenuItem;
 import android.view.MotionEvent;
@@ -90,19 +91,14 @@ import java.util.TimerTask;
 // Most basic implementation of an activity that uses VideoNative to stream a video
 // Into an Android Surface View
 public class VideoActivity extends AppCompatActivity implements
-        WfbNGStatsChanged, MavlinkUpdate, SettingsChanged {
+        WfbNGStatsChanged, SettingsChanged, WfbLinkManager.LinkStatusListener, VtxEngine.MavlinkDataListener {
     private static final String TAG = "pixelpilot";
     private static final int PICK_KEY_REQUEST_CODE = 1;
     private static final int PICK_DVR_REQUEST_CODE = 2;
     private static final int PICK_DRONE_KEY_REQUEST_CODE = 3;
     private static WifiManager wifiManager;
     final Handler handler = new Handler(Looper.getMainLooper());
-    final Runnable runnable = new Runnable() {
-        public void run() {
-            MavlinkNative.nativeCallBack(VideoActivity.this);
-            handler.postDelayed(this, 100);
-        }
-    };
+
     BroadcastReceiver batteryReceiver;
     private ActivityVideoBinding binding;
     private OSDManager osdManager;
@@ -300,12 +296,6 @@ public class VideoActivity extends AppCompatActivity implements
         // Button Handlers
         setupButtonHandlers();
 
-        // Mavlink Setup
-        setupMavlink();
-
-        // Battery Receiver
-        setupBatteryReceiver();
-
         
     }
 
@@ -356,7 +346,10 @@ public class VideoActivity extends AppCompatActivity implements
         public void surfaceCreated(@NonNull android.view.SurfaceHolder holder) {
             if (checkCameraPermission()) {
                 if (cameraConfig == null) cameraConfig = CameraConfig.load(VideoActivity.this);
-                if (vtxService != null) vtxService.getCameraStreamer().startStreaming(holder.getSurface(), cameraConfig, binding.btnPreviewToggle.isChecked());
+                if (vtxService != null) {
+                    Surface previewSurface = binding.btnPreviewToggle.isChecked() ? holder.getSurface() : null;
+                    vtxService.getEngine().startNativeCamera(cameraConfig, previewSurface);
+                }
             }
         }
 
@@ -365,20 +358,19 @@ public class VideoActivity extends AppCompatActivity implements
 
         @Override
         public void surfaceDestroyed(@NonNull android.view.SurfaceHolder holder) {
-            if (vtxService != null) vtxService.getCameraStreamer().stopStreaming();
+            if (vtxService != null) vtxService.getEngine().stopNativeCamera();
         }
     };
 
     private void onVtxServiceReady() {
         if (vtxService != null) {
-            vtxService.getCameraStreamer().setLatencyCallback((rawLatencyMs, avgLatencyMs) -> {
-                binding.tvEncLatencyRaw.setText(rawLatencyMs + " ms (raw)");
-                binding.tvEncLatencyAvg.setText(avgLatencyMs + " ms");
-            });
+            vtxService.getEngine().getWfbLinkManager().setListener(this);
+            vtxService.getEngine().setMavlinkDataListener(this);
             // If the surface was already created before binding finished, start it now
             if (binding.mainVideo.getHolder().getSurface().isValid() && checkCameraPermission()) {
                 if (cameraConfig == null) cameraConfig = CameraConfig.load(this);
-                vtxService.getCameraStreamer().startStreaming(binding.mainVideo.getHolder().getSurface(), cameraConfig, binding.btnPreviewToggle.isChecked());
+                Surface previewSurface = binding.btnPreviewToggle.isChecked() ? binding.mainVideo.getHolder().getSurface() : null;
+                vtxService.getEngine().startNativeCamera(cameraConfig, previewSurface);
             }
         }
     }
@@ -419,7 +411,7 @@ public class VideoActivity extends AppCompatActivity implements
             if (isChecked) {
                 restartStreaming();
             } else {
-                if (vtxService != null) vtxService.getCameraStreamer().stopStreaming();
+                if (vtxService != null) vtxService.getEngine().stopNativeCamera();
             }
         });
         binding.btnPreviewToggle.setOnCheckedChangeListener((btn, isChecked) -> {
@@ -470,8 +462,9 @@ public class VideoActivity extends AppCompatActivity implements
         if (vtxService == null || !binding.mainVideo.getHolder().getSurface().isValid()) return;
         if (cameraConfig == null) cameraConfig = CameraConfig.load(this);
         if (vtxService != null) {
-            vtxService.getCameraStreamer().stopStreaming();
-            vtxService.getCameraStreamer().startStreaming(binding.mainVideo.getHolder().getSurface(), cameraConfig, binding.btnPreviewToggle.isChecked());
+            vtxService.getEngine().stopNativeCamera();
+            Surface previewSurface = binding.btnPreviewToggle.isChecked() ? binding.mainVideo.getHolder().getSurface() : null;
+            vtxService.getEngine().startNativeCamera(cameraConfig, previewSurface);
         }
     }
 
@@ -603,7 +596,7 @@ public class VideoActivity extends AppCompatActivity implements
             SharedPreferences.Editor editor = getSharedPreferences("general", MODE_PRIVATE).edit();
             editor.putBoolean("adaptive_link_enabled", newState);
             editor.apply();
-            vtxService.getWfbLink().nativeSetAdaptiveLinkEnabled(newState);
+            vtxService.getEngine().getWfbLink().nativeSetAdaptiveLinkEnabled(newState);
             return true;
         });
 
@@ -623,7 +616,7 @@ public class VideoActivity extends AppCompatActivity implements
                 SharedPreferences.Editor editor = getSharedPreferences("general", MODE_PRIVATE).edit();
                 editor.putInt("adaptive_tx_power", power);
                 editor.apply();
-                vtxService.getWfbLink().nativeSetTxPower(power);
+                vtxService.getEngine().getWfbLink().nativeSetTxPower(power);
                 return true;
             });
         }
@@ -638,7 +631,7 @@ public class VideoActivity extends AppCompatActivity implements
             SharedPreferences.Editor editor = getSharedPreferences("general", MODE_PRIVATE).edit();
             editor.putBoolean("custom_fec_enabled", newState);
             editor.apply();
-            vtxService.getWfbLink().nativeSetUseFec(newState ? 1 : 0);
+            vtxService.getEngine().getWfbLink().nativeSetUseFec(newState ? 1 : 0);
             return true;
         });
 
@@ -653,7 +646,7 @@ public class VideoActivity extends AppCompatActivity implements
             SharedPreferences.Editor editor = getSharedPreferences("general", MODE_PRIVATE).edit();
             editor.putBoolean("custom_ldpc_enabled", newState);
             editor.apply();
-            vtxService.getWfbLink().nativeSetUseLdpc(newState ? 1 : 0);
+            vtxService.getEngine().getWfbLink().nativeSetUseLdpc(newState ? 1 : 0);
             return true;
         });
 
@@ -668,7 +661,7 @@ public class VideoActivity extends AppCompatActivity implements
             SharedPreferences.Editor editor = getSharedPreferences("general", MODE_PRIVATE).edit();
             editor.putBoolean("custom_stbc_enabled", newState);
             editor.apply();
-            vtxService.getWfbLink().nativeSetUseStbc(newState ? 1 : 0);
+            vtxService.getEngine().getWfbLink().nativeSetUseStbc(newState ? 1 : 0);
             return true;
         });
 
@@ -741,17 +734,17 @@ public class VideoActivity extends AppCompatActivity implements
         SharedPreferences prefs = getSharedPreferences("general", MODE_PRIVATE);
         boolean adaptiveEnabled = prefs.getBoolean("adaptive_link_enabled", true);
         int adaptiveTxPower = prefs.getInt("adaptive_tx_power", 20);
-        vtxService.getWfbLink().nativeSetAdaptiveLinkEnabled(adaptiveEnabled);
-        vtxService.getWfbLink().nativeSetTxPower(adaptiveTxPower);
+        vtxService.getEngine().getWfbLink().nativeSetAdaptiveLinkEnabled(adaptiveEnabled);
+        vtxService.getEngine().getWfbLink().nativeSetTxPower(adaptiveTxPower);
         boolean fecEnabled = prefs.getBoolean("custom_fec_enabled", true);
-        vtxService.getWfbLink().nativeSetUseFec(fecEnabled ? 1 : 0);
+        vtxService.getEngine().getWfbLink().nativeSetUseFec(fecEnabled ? 1 : 0);
 
         // LDPC and STBC default options
         boolean ldpcEnabled = prefs.getBoolean("custom_ldpc_enabled", true);
-        vtxService.getWfbLink().nativeSetUseLdpc(ldpcEnabled ? 1 : 0);
+        vtxService.getEngine().getWfbLink().nativeSetUseLdpc(ldpcEnabled ? 1 : 0);
 
         boolean stbcEnabled = prefs.getBoolean("custom_stbc_enabled", true);
-        vtxService.getWfbLink().nativeSetUseStbc(stbcEnabled ? 1 : 0);
+        vtxService.getEngine().getWfbLink().nativeSetUseStbc(stbcEnabled ? 1 : 0);
 
         setFecThresholdsFromPrefs();
     }
@@ -764,8 +757,8 @@ public class VideoActivity extends AppCompatActivity implements
         int recTo3 = prefs.getInt("fec_recovered_to_3", 24);
         int recTo2 = prefs.getInt("fec_recovered_to_2", 14);
         int recTo1 = prefs.getInt("fec_recovered_to_1", 8);
-        if (vtxService != null && vtxService.getWfbLink() != null) {
-            vtxService.getWfbLink().setFecThresholds(lostTo5, recTo4, recTo3, recTo2, recTo1);
+        if (vtxService != null && vtxService.getEngine().getWfbLink() != null) {
+            vtxService.getEngine().getWfbLink().setFecThresholds(lostTo5, recTo4, recTo3, recTo2, recTo1);
         }
     }
 
@@ -841,31 +834,8 @@ public class VideoActivity extends AppCompatActivity implements
 
     // ----------------------------------------------------------------------------
     // MAVLINK SETUP
-    // ----------------------------------------------------------------------------
-
-    /**
-     * Starts the native Mavlink service and posts an initial Runnable to the Handler.
-     */
-    private void setupMavlink() {
-        MavlinkNative.nativeStart(this);
-        handler.post(runnable);
-    }
-
-    // ----------------------------------------------------------------------------
     // BATTERY RECEIVER
     // ----------------------------------------------------------------------------
-
-    /**
-     * Registers a receiver that listens for battery status changes and updates the UI accordingly.
-     */
-    private void setupBatteryReceiver() {
-        batteryReceiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent batteryStatus) {
-                updateBatteryStatus(batteryStatus);
-            }
-        };
-    }
 
     /**
      * Updates the battery icon and percentage based on the current battery state.
@@ -1013,7 +983,7 @@ public class VideoActivity extends AppCompatActivity implements
             if (dvrUri != null) {
                 startDvr(dvrUri);
             } else {
-                if (vtxService != null) vtxService.getWfbLinkManager().stopAdapters();
+                if (vtxService != null) vtxService.getEngine().getWfbLinkManager().stopAdapters();
 
                 Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
                 intent.addCategory(Intent.CATEGORY_DEFAULT);
@@ -1100,7 +1070,7 @@ public class VideoActivity extends AppCompatActivity implements
                     InputStream inputStream = getContentResolver().openInputStream(uri);
                     setGsKey(inputStream);
                     copyGSKey();
-                    if (vtxService != null) vtxService.getWfbLinkManager().refreshKey();
+                    if (vtxService != null) vtxService.getEngine().getWfbLinkManager().refreshKey();
                     inputStream.close();
                 } catch (IOException e) {
                     Log.e(TAG, "Failed to import gs.key from " + uri);
@@ -1114,7 +1084,7 @@ public class VideoActivity extends AppCompatActivity implements
                     InputStream inputStream = getContentResolver().openInputStream(uri);
                     setDroneKey(inputStream);
                     copyDroneKey();
-                    if (vtxService != null) vtxService.getWfbLinkManager().refreshKey();
+                    if (vtxService != null) vtxService.getEngine().getWfbLinkManager().refreshKey();
                     inputStream.close();
                 } catch (IOException e) {
                     Log.e(TAG, "Failed to import drone.key from " + uri);
@@ -1261,7 +1231,6 @@ public class VideoActivity extends AppCompatActivity implements
     @Override
     protected void onStop() {
         Log.d(TAG, "lifecycle onStop");
-        handler.removeCallbacks(runnable);
         unregisterReceivers();
         if (isBound) {
             unbindService(connection);
@@ -1274,11 +1243,11 @@ public class VideoActivity extends AppCompatActivity implements
         Log.d(TAG, "lifecycle onResume");
 
         if (vtxService != null) {
-            vtxService.getWfbLinkManager().setChannel(getChannel(this));
-            vtxService.getWfbLinkManager().setBandwidth(getBandwidth(this));
+            vtxService.getEngine().getWfbLinkManager().setChannel(getChannel(this));
+            vtxService.getEngine().getWfbLinkManager().setBandwidth(getBandwidth(this));
             // On resume is called when the app is reopened, a device might have been plugged since the last time it started.
-            vtxService.getWfbLinkManager().refreshAdapters();
-            vtxService.getWfbLinkManager().startAdapters();
+            vtxService.getEngine().getWfbLinkManager().refreshAdapters();
+            vtxService.getEngine().getWfbLinkManager().startAdapters();
         }
 
         osdManager.restoreOSDConfig();
@@ -1296,9 +1265,9 @@ public class VideoActivity extends AppCompatActivity implements
         SharedPreferences.Editor editor = prefs.edit();
         editor.putInt("wifi-channel", channel);
         editor.apply();
-        vtxService.getWfbLinkManager().stopAdapters();
-        vtxService.getWfbLinkManager().setChannel(channel);
-        vtxService.getWfbLinkManager().startAdapters();
+        vtxService.getEngine().getWfbLinkManager().stopAdapters();
+        vtxService.getEngine().getWfbLinkManager().setChannel(channel);
+        vtxService.getEngine().getWfbLinkManager().startAdapters();
     }
 
     @Override
@@ -1311,9 +1280,9 @@ public class VideoActivity extends AppCompatActivity implements
         SharedPreferences.Editor editor = prefs.edit();
         editor.putInt("bandwidth", bandwidth);
         editor.apply();
-        vtxService.getWfbLinkManager().stopAdapters();
-        vtxService.getWfbLinkManager().setBandwidth(bandwidth);
-        vtxService.getWfbLinkManager().startAdapters();
+        vtxService.getEngine().getWfbLinkManager().stopAdapters();
+        vtxService.getEngine().getWfbLinkManager().setBandwidth(bandwidth);
+        vtxService.getEngine().getWfbLinkManager().startAdapters();
     }
 
     @Override
@@ -1324,6 +1293,16 @@ public class VideoActivity extends AppCompatActivity implements
     @Override
     public void onNewMavlinkData(MavlinkData data) {
         runOnUiThread(() -> osdManager.render(data));
+    }
+
+    @Override
+    public void onEncoderLatencyUpdated(float latencyMs) {
+        runOnUiThread(() -> {
+            binding.tvEncLatencyAvg.setText((int)latencyMs + " ms");
+            // We don't have raw latency from the whiteboard (it's already averaged in C++), 
+            // so we set it to the same for now.
+            binding.tvEncLatencyRaw.setText((int)latencyMs + " ms (avg)");
+        });
     }
 
     private void copyGSKey() {
@@ -1477,6 +1456,32 @@ public class VideoActivity extends AppCompatActivity implements
                 String username = getDroneUsername();
                 String password = getDronePassword();
                 handler.proceed(username, password);
+            }
+        });
+    }
+
+    // ----------------------------------------------------------------------------
+    // WFB-NG LINK STATUS LISTENER
+    // ----------------------------------------------------------------------------
+    @Override
+    public void onAdapterMessage(String message) {
+        runOnUiThread(() -> {
+            binding.tvMessage.setVisibility(View.VISIBLE);
+            binding.tvMessage.setText(message);
+        });
+    }
+
+    @Override
+    public void onNoAdaptersFound() {
+        runOnUiThread(() -> {
+            binding.tvMessage.setText("No compatible wifi adapter found.");
+            binding.tvMessage.setVisibility(View.VISIBLE);
+
+            String wifi = wirelessInfo();
+            if (wifi != null) {
+                String local = "udp://" + wifi + ":5600";
+                binding.wifiMessage.setText(local);
+                binding.wifiMessage.setVisibility(View.VISIBLE);
             }
         });
     }

@@ -1,58 +1,71 @@
 # Android VTX
 
-> [!IMPORTANT]
-> This application is a high-performance, ultra-low latency digital video transmitter for Android.
-> It transforms a smartphone into a powerful VTX capable of 120 FPS high-speed streaming.
+This application is a digital video transmitter for Android devices. It allows a smartphone to capture and stream video at high frame rates (up to 240 FPS) using a native C++ data plane.
 
----
+## Key Features
 
-## 🚀 Key Features
+*   **Native Data Plane:** Video capture and encoding are handled in C++ using `ACamera` and `AMediaCodec` APIs to minimize latency and avoid Java Garbage Collection overhead.
+*   **High Frame Rate Support:** Configurable support for 120 FPS and 240 FPS capture modes on compatible hardware.
+*   **Video Encoders:** Supports H.264 (AVC) and H.265 (HEVC) hardware encoding.
+*   **Headless Operation:** Core components run in a persistent Android Service (`VtxService`), allowing the transmission to continue independently of the UI state.
+*   **Telemetry Integration:** Integrated `mavlink-router` for bidirectional MAVLink communication and a native scheduler for localized telemetry (e.g., encoder latency).
+*   **Radio Integration:** Built-in support for `wfb-ng` air link utilizing RTL8812AU adapters.
 
-*   **High-Speed Capture:** Supports **120 FPS** and **240 FPS** via Android's `ConstrainedHighSpeedCaptureSession`.
-*   **720p Optimized:** Crisp 1280x720 video encoded with hardware-accelerated **H.264 (Qualcomm OMX)**.
-*   **Robust Radio Link:** Integrated `wfb-ng` air link with custom `devourer` userspace driver for **RTL8812AU** adapters.
-*   **Intelligent MTU:** Automatic NAL unit fragmentation for reliable transmission over jittery wireless links.
-*   **IP Tunneling:** Supports concurrent Mavlink telemetry and IP data over the radio link.
+## System Architecture
 
-## 🔧 Getting Started
+The project is structured with a Java control plane for configuration and a C++ NDK data plane for performance-critical operations.
 
-### Hardware Requirements
-1.  **Phone:** Rooted Android device with a high-speed camera sensor (e.g., Redmi K20 Pro, Pixel 7, etc.).
-2.  **Radio:** RTL8812AU USB WiFi Adapter.
-3.  **Cable:** High-quality OTG cable.
+```mermaid
+graph TD
+    subgraph "Control Plane (Java)"
+        Service[VtxService] --> Engine[VtxEngine]
+        Engine --> UI[VideoActivity]
+    end
 
-### Quick Setup (VTX Mode)
-1.  Open **Android VTX**.
-2.  Go to **Settings** -> **VTX Mode** -> Toggle **ON**.
-3.  Grant **Root** and **Camera** permissions.
-4.  Connect your WiFi card and grant USB permissions.
-5.  Video will automatically start streaming to your Ground Station!
+    subgraph "Data Plane (C++ NDK)"
+        Engine -- JNI --> CamLib[libcamera_native.so]
+        CamLib -- "dlsym" --> MavLib[libmavlink.so]
+        MavLib --> Router[mavlink-router]
+        CamLib -- "UDP" --> WfbLib[libwfbngrtl8812.so]
+    end
 
-### Ground Station Pipeline
-On your Linux GS, use the following GStreamer command:
-```bash
-socat -u UDP4-RECV:5600,reuseaddr - | gst-launch-1.0 -v fdsrc ! h264parse ! avdec_h264 ! autovideosink sync=false
+    CamLib -- "ACamera" --> HW_Cam[[Camera]]
+    WfbLib -- "USB" --> HW_WiFi[[RTL8812AU]]
 ```
 
----
+## Getting Started
 
-## 🏗️ Build & Install
+### Hardware Requirements
+*   Rooted Android device with high-speed camera support.
+*   RTL8812AU USB WiFi Adapter.
+*   OTG cable for adapter connection.
 
-### Clone
+### Installation & Setup
+1.  Launch the application and grant required Root and Camera permissions.
+2.  Enable **VTX Mode** in the application settings.
+3.  Connect the WiFi adapter via OTG and grant USB permissions.
+4.  Transmission will begin automatically based on the configured settings.
+
+### Ground Station Configuration (H.264)
+The stream can be viewed on a Linux ground station using GStreamer:
 ```bash
-git clone https://github.com/OpenIPC/android-vtx.git
+gst-launch-1.0 -v udpsrc port=5600 ! h264parse ! avdec_h264 ! autovideosink sync=false
+```
+
+## Build Instructions
+
+### Prerequisites
+*   Android Studio Hedgehog (2023.1.1) or newer.
+*   Android NDK and CMake.
+
+### Build Steps
+```bash
+git clone https://github.com/NinadRagit/android-vtx.git
 cd android-vtx
 git submodule update --init --recursive
 ```
+Open the project in Android Studio and perform a standard Gradle build.
 
-### Build
-Open the project in **Android Studio v2022.3+**. The `devourer` driver is now vendored directly into the source tree for a simplified build process.
-
----
-
-## 🗺️ Roadmap & Documentation
-*   [ROADMAP.md](ROADMAP.md): Future goals and project milestones.
-*   [docs/wfb-tx-fix.md](docs/wfb-tx-fix.md): Technical deep-dive into the RTL8812AU HT MCS bug fix.
-
----
-*Developed by the OpenIPC Community.*
+## Documentation
+*   [Architecture Overview](docs/architecture_overview.md): Technical details on the headless NDK architecture.
+*   [WFB HT MCS Fix](docs/wfb-tx-fix.md): Analysis of the RTL8812AU performance optimizations.

@@ -7,9 +7,6 @@ import android.content.Intent;
 import android.hardware.usb.UsbDevice;
 import android.hardware.usb.UsbManager;
 import android.util.Log;
-import android.view.View;
-
-import com.openipc.pixelpilot.databinding.ActivityVideoBinding;
 import com.openipc.wfbngrtl8812.WfbNgLink;
 
 import java.util.HashMap;
@@ -18,11 +15,15 @@ import java.util.List;
 import java.util.Map;
 
 public class WfbLinkManager extends BroadcastReceiver {
+    public interface LinkStatusListener {
+        void onAdapterMessage(String message);
+        void onNoAdaptersFound();
+    }
     public static final String ACTION_USB_PERMISSION = "com.openipc.pixelpilot.USB_PERMISSION";
     private static final String TAG = "pixelpilot";
     static Map<String, UsbDevice> activeWifiAdapters = new HashMap<>();
     private final WfbNgLink wfbLink;
-    private final ActivityVideoBinding binding;
+    private LinkStatusListener listener;
     private final Context context;
     private int wifiChannel;
     private Bandwidth bandWidth;
@@ -42,10 +43,14 @@ public class WfbLinkManager extends BroadcastReceiver {
         }
     }
 
-    public WfbLinkManager(Context context, ActivityVideoBinding binding, WfbNgLink wfbNgLink) {
-        this.binding = binding;
+    public WfbLinkManager(Context context, LinkStatusListener listener, WfbNgLink wfbNgLink) {
+        this.listener = listener;
         this.context = context;
         this.wfbLink = wfbNgLink;
+    }
+
+    public void setListener(LinkStatusListener listener) {
+        this.listener = listener;
     }
 
     public void refreshKey() {
@@ -125,9 +130,8 @@ public class WfbLinkManager extends BroadcastReceiver {
                 (android.hardware.usb.UsbManager) context.getSystemService(Context.USB_SERVICE);
         for (Map.Entry<String, UsbDevice> entry : attachedAdapters.entrySet()) {
             if (!usbManager.hasPermission(entry.getValue())) {
-                if (binding != null) {
-                    binding.tvMessage.setVisibility(View.VISIBLE);
-                    binding.tvMessage.setText("No permission for wifi adapter(s) " + entry.getValue().getDeviceName());
+                if (listener != null) {
+                    listener.onAdapterMessage("No permission for wifi adapter(s) " + entry.getValue().getDeviceName());
                 }
                 PendingIntent pendingIntent = PendingIntent.getBroadcast(context, 0,
                         new Intent(WfbLinkManager.ACTION_USB_PERMISSION), PendingIntent.FLAG_IMMUTABLE);
@@ -161,17 +165,8 @@ public class WfbLinkManager extends BroadcastReceiver {
         }
 
         if (activeWifiAdapters.isEmpty()) {
-            String text = "No compatible wifi adapter found.";
-            if (binding != null) {
-                binding.tvMessage.setText(text);
-                binding.tvMessage.setVisibility(View.VISIBLE);
-
-                String wifi = VideoActivity.wirelessInfo();
-                if (wifi != null) {
-                    String local = "udp://" + wifi + ":5600";
-                    binding.wifiMessage.setText(local);
-                    binding.wifiMessage.setVisibility(View.VISIBLE);
-                }
+            if (listener != null) {
+                listener.onNoAdaptersFound();
             }
         }
     }
@@ -205,9 +200,8 @@ public class WfbLinkManager extends BroadcastReceiver {
     public synchronized boolean startAdapter(UsbDevice dev) {
         String text = "Starting wfb-ng channel " + wifiChannel + " with " + String.format(
                 "[%04X", dev.getVendorId()) + ":" + String.format("%04X]", dev.getProductId());
-        if (binding != null) {
-            binding.tvMessage.setVisibility(View.VISIBLE);
-            binding.tvMessage.setText(text);
+        if (listener != null) {
+            listener.onAdapterMessage(text);
         }
         wfbLink.start(wifiChannel, bandWidth.getValue(), dev);
         return true;

@@ -42,19 +42,12 @@ import android.util.Base64;
  * 3. The WFB-NG VPN Tunnel (UDP Video aggregation)
  * 4. Mavlink Telemetry Routing (Future)
  */
-public class VtxService extends Service implements WfbNGStatsChanged {
+public class VtxService extends Service {
     private static final String TAG = "VtxService";
     private static final String CHANNEL_ID = "VtxServiceChannel";
 
-    private WfbNgLink wfbLink;
-    private WfbLinkManager wfbLinkManager;
-
-    private TelemetryRouter telemetryRouter;
+    private VtxEngine vtxEngine;
     private BroadcastReceiver batteryReceiver;
-    
-    // Core Engine Components
-    private CameraStreamer cameraStreamer;
-    private CameraConfig cameraConfig;
     
     // Battery tracking for telemetry
     private int currentBatteryPct = 100;
@@ -67,16 +60,9 @@ public class VtxService extends Service implements WfbNGStatsChanged {
         // 1. Initialize Default Keys for WFB-NG
         ensureWfbKeys();
 
-        // 2. Initialize WFB-NG Link
-        wfbLink = new WfbNgLink(this, true); // true = VTX mode
-        wfbLink.SetWfbNGStatsChanged(this);
-        // Note: WfbLinkManager currently requires a binding, we may need to refactor it to accept null or an interface
-        wfbLinkManager = new WfbLinkManager(this, null, wfbLink); 
-        
+        // 2. Initialize VTX Engine (Headless Orchestrator)
+        vtxEngine = new VtxEngine(this);
         applyDefaultWfbOptions();
-
-        // 2a. Initialize Telemetry Router (USB -> UDP)
-        telemetryRouter = new TelemetryRouter(this);
 
         // 3. Register Receivers
         setupBatteryReceiver();
@@ -107,14 +93,9 @@ public class VtxService extends Service implements WfbNGStatsChanged {
 
         startForeground(1, notification);
 
-        // Refresh adapters on start
-        wfbLinkManager.setChannel(VideoActivity.getChannel(this));
-        wfbLinkManager.setBandwidth(VideoActivity.getBandwidth(this));
-        wfbLinkManager.refreshAdapters();
-        wfbLinkManager.startAdapters();
-
-        if (telemetryRouter != null) {
-            telemetryRouter.start();
+        // Start the engine
+        if (vtxEngine != null) {
+            vtxEngine.start();
         }
 
         return START_STICKY;
@@ -123,16 +104,10 @@ public class VtxService extends Service implements WfbNGStatsChanged {
     @Override
     public void onDestroy() {
         Log.d(TAG, "VtxService shutting down.");
-        if (telemetryRouter != null) {
-            telemetryRouter.stop();
-        }
-        if (cameraStreamer != null) {
-            cameraStreamer.stopStreaming();
+        if (vtxEngine != null) {
+            vtxEngine.stop();
         }
         unregisterReceivers();
-        if (wfbLinkManager != null) {
-            wfbLinkManager.stopAdapters();
-        }
         Intent intent = new Intent(this, WfbNgVpnService.class);
         intent.setAction("STOP_SERVICE");
         startService(intent);
@@ -158,19 +133,8 @@ public class VtxService extends Service implements WfbNGStatsChanged {
 
     // ── Public API for Headless Control OR UI Delegate ────────────────────────
 
-    public CameraStreamer getCameraStreamer() {
-        if (cameraStreamer == null) {
-            cameraStreamer = new CameraStreamer(this);
-        }
-        return cameraStreamer;
-    }
-
-    public WfbLinkManager getWfbLinkManager() {
-        return wfbLinkManager;
-    }
-
-    public WfbNgLink getWfbLink() {
-        return wfbLink;
+    public VtxEngine getEngine() {
+        return vtxEngine;
     }
 
     // ── Helper Methods Migrated from VideoActivity ────────────────────────────
@@ -248,6 +212,7 @@ public class VtxService extends Service implements WfbNGStatsChanged {
 
     private void applyDefaultWfbOptions() {
         SharedPreferences prefs = getSharedPreferences("general", MODE_PRIVATE);
+        WfbNgLink wfbLink = vtxEngine.getWfbLink();
         wfbLink.nativeSetAdaptiveLinkEnabled(prefs.getBoolean("adaptive_link_enabled", true));
         wfbLink.nativeSetTxPower(prefs.getInt("adaptive_tx_power", 20));
         wfbLink.nativeSetUseFec(prefs.getBoolean("custom_fec_enabled", true) ? 1 : 0);
@@ -285,21 +250,16 @@ public class VtxService extends Service implements WfbNGStatsChanged {
         IntentFilter batFilter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
 
         if (Build.VERSION.SDK_INT >= 33) {
-            registerReceiver(wfbLinkManager, usbFilter, Context.RECEIVER_NOT_EXPORTED);
+            registerReceiver(vtxEngine.getWfbLinkManager(), usbFilter, Context.RECEIVER_NOT_EXPORTED);
             registerReceiver(batteryReceiver, batFilter, Context.RECEIVER_NOT_EXPORTED);
         } else {
-            registerReceiver(wfbLinkManager, usbFilter);
+            registerReceiver(vtxEngine.getWfbLinkManager(), usbFilter);
             registerReceiver(batteryReceiver, batFilter);
         }
     }
 
     private void unregisterReceivers() {
-        try { unregisterReceiver(wfbLinkManager); } catch (IllegalArgumentException ignored) {}
+        try { unregisterReceiver(vtxEngine.getWfbLinkManager()); } catch (IllegalArgumentException ignored) {}
         try { unregisterReceiver(batteryReceiver); } catch (IllegalArgumentException ignored) {}
-    }
-
-    @Override
-    public void onWfbNgStatsChanged(WfbNGStats data) {
-        // Ignored in VTX mode
     }
 }

@@ -33,9 +33,29 @@
 
 static int send_fd = -1;
 static struct sockaddr_in dest_addr;
-static std::atomic<bool> heartbeat_running(false);
 
-void send_heartbeat();
+// ── TELEMETRY SCHEDULER WHITEBOARD ───────────────────────────────────────────
+// This struct holds the latest asynchronous telemetry values produced by the 
+// system (e.g. from Java CameraStreamer or VtxService). 
+// The C++ Telemetry Scheduler loop reads from this whiteboard at fixed intervals.
+struct TelemetryWhiteboard {
+    std::atomic<float> encoder_latency_ms{0.0f};
+    std::atomic<bool>  has_new_latency_data{false};
+};
+
+static TelemetryWhiteboard g_whiteboard;
+static std::atomic<bool> scheduler_running{false};
+
+// Exported C function for cross-library whiteboard updates.
+// Called by libcamera_native.so via dlsym to update encoder latency
+// without requiring a JNI round-trip.
+extern "C" __attribute__((visibility("default")))
+void telemetry_update_encoder_latency(float latency_ms) {
+    g_whiteboard.encoder_latency_ms.store(latency_ms);
+    g_whiteboard.has_new_latency_data.store(true);
+}
+
+void telemetry_scheduler_thread();
 
 long distance_meters_between(double lat1, double lon1, double lat2, double lon2) {
     double delta = (lon1 - lon2) * 0.017453292519;
@@ -390,67 +410,79 @@ Java_com_openipc_mavlink_MavlinkNative_nativeSendNamedValueFloat(JNIEnv *env, jc
     const char *nativeName = env->GetStringUTFChars(name, nullptr);
     if (!nativeName) return;
 
-    mavlink_message_t msg;
-    char name_arr[10];
-    memset(name_arr, 0, 10);
-    strncpy(name_arr, nativeName, 10);
-
-    // Pack the NAMED_VALUE_FLOAT message
-    // sysid=1, compid=158 (Peripheral)
-    uint32_t boot_ms = 0;
-    struct timespec ts;
-    if (clock_gettime(CLOCK_BOOTTIME, &ts) == 0) {
-        boot_ms = (uint32_t)(ts.tv_sec * 1000 + ts.tv_nsec / 1000000);
+    // DATA PLANE SEPARATION: 
+    // Java no longer touches the MAVLink UDP socket directly!
+    // We simply update the thread-safe Whiteboard, and the C++ Scheduler
+    // picks it up and transmits it at a metered frequency.
+    if (strcmp(nativeName, "EncLat") == 0) {
+        g_whiteboard.encoder_latency_ms.store(value);
+        g_whiteboard.has_new_latency_data.store(true);
+    } else {
+        __android_log_print(ANDROID_LOG_INFO, TAG, "Unknown NamedValueFloat: %s", nativeName);
     }
 
-    mavlink_msg_named_value_float_pack(1, COMP_ID, &msg, boot_ms, name_arr, value);
+    env->ReleaseStringUTFChars(name, nativeName);
+}
 
+// ── TELEMETRY SCHEDULER LOOP (1 Hz Base Frequency) ───────────────────────────
+void telemetry_scheduler_thread() {
     uint8_t buf[MAVLINK_MAX_PACKET_LEN];
-    uint16_t len = mavlink_msg_to_send_buffer(buf, &msg);
+    mavlink_message_t msg;
 
-    // Send via UDP to 127.0.0.1:14551 (WFB-NG Telemetry TX)
+    while (scheduler_running) {
+        if (send_fd >= 0) {
+            // 1. Send 1Hz HEARTBEAT
+            mavlink_msg_heartbeat_pack(1, COMP_ID, &msg, MAV_TYPE_GENERIC, MAV_AUTOPILOT_GENERIC, 0, 0, MAV_STATE_ACTIVE);
+            uint16_t len = mavlink_msg_to_send_buffer(buf, &msg);
+            sendto(send_fd, buf, len, 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
+
+            // 2. Poll Whiteboard for 1Hz telemetry
+            if (g_whiteboard.has_new_latency_data.exchange(false)) { // exchange clears the flag
+                float enc_lat = g_whiteboard.encoder_latency_ms.load();
+                
+                uint32_t boot_ms = 0;
+                struct timespec ts;
+                if (clock_gettime(CLOCK_BOOTTIME, &ts) == 0) {
+                    boot_ms = (uint32_t)(ts.tv_sec * 1000 + ts.tv_nsec / 1000000);
+                }
+
+                char name_arr[10] = "EncLat";
+                mavlink_msg_named_value_float_pack(1, COMP_ID, &msg, boot_ms, name_arr, enc_lat);
+                len = mavlink_msg_to_send_buffer(buf, &msg);
+                sendto(send_fd, buf, len, 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
+            }
+        }
+        
+        // Loop runs at strictly 1Hz
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
+}
+
+extern "C"
+JNIEXPORT jfloat JNICALL
+Java_com_openipc_mavlink_MavlinkNative_nativeGetEncoderLatency(JNIEnv *env, jclass clazz) {
+    return (jfloat) g_whiteboard.encoder_latency_ms.load();
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_openipc_mavlink_MavlinkNative_nativeStart(JNIEnv *env, jclass clazz, jobject context) {
+    // 1. Open socket (Deterministic initialization)
     if (send_fd == -1) {
         send_fd = socket(AF_INET, SOCK_DGRAM, 0);
         memset(&dest_addr, 0, sizeof(dest_addr));
         dest_addr.sin_family = AF_INET;
         dest_addr.sin_port = htons(14551);
         inet_pton(AF_INET, "127.0.0.1", &dest_addr.sin_addr);
-
-        if (!heartbeat_running.exchange(true)) {
-            std::thread(send_heartbeat).detach();
-            __android_log_print(ANDROID_LOG_INFO, TAG, "Mavlink Heartbeat thread started");
-        }
     }
 
-    if (send_fd >= 0) {
-        ssize_t sent = sendto(send_fd, buf, len, 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
-        if (sent < 0) {
-            __android_log_print(ANDROID_LOG_ERROR, TAG, "nativeSendNamedValueFloat: sendto failed: %s", strerror(errno));
-        }
-    } else {
-        __android_log_print(ANDROID_LOG_ERROR, TAG, "nativeSendNamedValueFloat: invalid send_fd");
+    // 2. Start Telemetry Scheduler thread (1 Hz bucket aggregation)
+    if (!scheduler_running.exchange(true)) {
+        std::thread(telemetry_scheduler_thread).detach();
+        __android_log_print(ANDROID_LOG_INFO, TAG, "Telemetry Scheduler thread started");
     }
 
-    env->ReleaseStringUTFChars(name, nativeName);
-}
-
-void send_heartbeat() {
-    uint8_t buf[MAVLINK_MAX_PACKET_LEN];
-    mavlink_message_t msg;
-
-    while (heartbeat_running) {
-        if (send_fd >= 0) {
-            mavlink_msg_heartbeat_pack(1, COMP_ID, &msg, MAV_TYPE_GENERIC, MAV_AUTOPILOT_GENERIC, 0, 0, MAV_STATE_ACTIVE);
-            uint16_t len = mavlink_msg_to_send_buffer(buf, &msg);
-            sendto(send_fd, buf, len, 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
-        }
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-    }
-}
-
-extern "C"
-JNIEXPORT void JNICALL
-Java_com_openipc_mavlink_MavlinkNative_nativeStart(JNIEnv *env, jclass clazz, jobject context) {
+    // 3. Start local inbound listener (OSD)
     auto threadFunction = []() {
         listen(14552);
     };

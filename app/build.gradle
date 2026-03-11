@@ -47,6 +47,7 @@ android {
 dependencies {
     implementation(project(":app:mavlink"))
     implementation(project(":app:wfbngrtl8812"))
+    implementation(project(":app:camera"))
 
     implementation(libs.appcompat)
     implementation(libs.material)

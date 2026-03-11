@@ -27,6 +27,7 @@ rootProject.name = "android-vtx"
 include(":app")
 include(":app:wfbngrtl8812")
 include(":app:mavlink")
+include(":app:camera")
 
 include ':usbSerialForAndroid'
 project(':usbSerialForAndroid').projectDir = new File('usb-serial-for-android/usbSerialForAndroid')

@@ -24,15 +24,14 @@ import java.net.SocketException;
 import java.util.List;
 
 /**
- * Handles Bidirectional telemetry routing between a USB Serial connected Flight Controller
- * and the local UDP socket (which is bridged over the air by WFB-NG).
+ * Handles Bidirectional telemetry bridging between a USB Serial connected Flight Controller
+ * and the local MavlinkRouter C++ daemon (which handles the actual routing to WFB-NG/OSD).
  */
 public class TelemetryRouter implements SerialInputOutputManager.Listener {
 
     private static final String TAG = "TelemetryRouter";
-    private static final int WFB_RX_PORT = 14550; // WFB-NG receives GS data here
-    private static final int WFB_TX_PORT = 14551; // WFB-NG transmits to GS from here
-    private static final int MAVLINK_NATIVE_PORT = 14552; // Our OSD daemon local port
+    // MAVLink router daemon listens here for the USB serial stream
+    private static final int ROUTER_PORT = 14550;
     private static final String UDP_HOST = "127.0.0.1";
     private static final int SERIAL_BAUD_RATE = 115200;
 
@@ -90,10 +89,10 @@ public class TelemetryRouter implements SerialInputOutputManager.Listener {
 
     private void setupUdpSocket() {
         try {
-            // Bind to the port where WFB-NG sends data from the Ground Station
+            // Bind to an ephemeral port
             udpSocket = new DatagramSocket(null);
             udpSocket.setReuseAddress(true);
-            udpSocket.bind(new InetSocketAddress(WFB_RX_PORT));
+            udpSocket.bind(new InetSocketAddress(0));
             
             udpAddress = InetAddress.getByName(UDP_HOST);
 
@@ -104,26 +103,20 @@ public class TelemetryRouter implements SerialInputOutputManager.Listener {
                         DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
                         udpSocket.receive(packet);
                         
-                        // 1. Data from WFB-NG (Ground Station) -> Write to USB Serial (Flight Controller)
+                        // Data from MavlinkRouter C++ daemon -> Write back to USB Serial (Flight Controller)
                         if (usbSerialPort != null && usbSerialPort.isOpen()) {
-                            // TODO: Intercept specific Mavlink packets here (e.g. Camera Switch)
                             usbSerialPort.write(packet.getData(), 200);
                         }
-                        
-                        // 2. Also forward GS data to the local OSD daemon so it knows GS status
-                        DatagramPacket localOsDPacket = new DatagramPacket(packet.getData(), packet.getLength(), udpAddress, MAVLINK_NATIVE_PORT);
-                        udpSocket.send(localOsDPacket);
-
                     } catch (IOException e) {
                         if (isRunning) Log.e(TAG, "UDP Receive Error", e);
                     }
                 }
             });
             udpListenerThread.start();
-            Log.d(TAG, "UDP Socket setup complete.");
+            Log.d(TAG, "UDP Relay Socket setup complete.");
 
         } catch (Exception e) {
-            Log.e(TAG, "Failed to setup UDP Socket", e);
+            Log.e(TAG, "Failed to setup UDP Relay Socket", e);
         }
     }
 
@@ -173,7 +166,7 @@ public class TelemetryRouter implements SerialInputOutputManager.Listener {
         try {
             usbSerialPort.open(connection);
             usbSerialPort.setParameters(SERIAL_BAUD_RATE, 8, UsbSerialPort.STOPBITS_1, UsbSerialPort.PARITY_NONE);
-            
+
             usbIoManager = new SerialInputOutputManager(usbSerialPort, this);
             usbIoManager.start();
             Log.d(TAG, "Successfully connected to Flight Controller USB Serial.");
@@ -206,19 +199,14 @@ public class TelemetryRouter implements SerialInputOutputManager.Listener {
     @Override
     public void onNewData(byte[] data) {
         // Data received from the Flight Controller (USB Serial)
-        // Forward it to the UDP tunnel (Ground Station) AND the local OSD (MavlinkNative)
+        // Forward it raw to the native mavlink-router C++ daemon over UDP
         if (udpSocket != null && !udpSocket.isClosed() && udpAddress != null) {
             try {
-                // Send telemetry to the wfb-ng tunnel endpoint (so GS receives it)
-                DatagramPacket txPacket = new DatagramPacket(data, data.length, udpAddress, WFB_TX_PORT);
+                // Send raw serial stream to the router port
+                DatagramPacket txPacket = new DatagramPacket(data, data.length, udpAddress, ROUTER_PORT);
                 udpSocket.send(txPacket);
-
-                // Send telemetry to the local MavlinkNative daemon (so OSD updates)
-                DatagramPacket osdPacket = new DatagramPacket(data, data.length, udpAddress, MAVLINK_NATIVE_PORT);
-                udpSocket.send(osdPacket);
-
             } catch (IOException e) {
-                Log.e(TAG, "Error forwarding telemetry to UDP", e);
+                Log.e(TAG, "Error forwarding telemetry to MavlinkRouter UDP", e);
             }
         }
     }

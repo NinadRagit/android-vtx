@@ -1,6 +1,6 @@
 # Android-VTX Headless Architecture
 
-This document describes the decoupled, headless-first backend architecture for `android-vtx`, as implemented in Phase 4 and Phase 5 of the architectural refactor.
+This document describes the decoupled, headless-first backend architecture for `android-vtx`, optimized for high-performance NDK execution.
 
 ## Flow Diagram
 
@@ -13,20 +13,20 @@ flowchart TD
     
     %% Headless Service Core
     subgraph VtxService [Headless VtxService (Background Process)]
-        subgraph Pipeline [Video Pipeline]
-            cam_mgr(Camera Manager)
-            surf_dummy[Dummy Surface<br>Provides Hardware Unlock]
-            hw_codec(MediaCodec<br>H264/H265 Hardware Encoder)
-            udp_vid>UDP Socket<br>:5600]
+        subgraph DataPlane [NDK Data Plane]
+            cam_native(CameraNative C++<br>ACamera / AMediaCodec)
+            udp_vid>UDP Socket<br>localhost:8001]
+            wfb_daemon((libwfbng driver))
         end
         
-        subgraph WfbNg [WFB-NG Tunnel]
-            wfb_daemon((WFB-NG Daemon))
+        subgraph ControlPlane [Java Control Plane]
+            engine{VtxEngine}
+            tele_router[Telemetry Router<br>USB-Serial Bridge]
         end
         
-        subgraph Telemetry [Bidirectional Telemetry]
-            tele_router{Telemetry Router}
-            mavlink((MavlinkNative OSD Daemon))
+        subgraph Telemetry [Telemetry Stack]
+            mav_router((mavlink-router daemon))
+            mav_native(MavlinkNative C++<br>Scheduler & Whiteboard)
         end
     end
 
@@ -37,38 +37,39 @@ flowchart TD
     end
 
     %% Routing
-    hw_camera -- Camera2 API --> cam_mgr
-    cam_mgr -- Frame Data --> surf_dummy
-    cam_mgr -. Optional Preview .-> surf_preview
+    hw_camera -- NDK ACamera --> cam_native
+    cam_native -- AMediaCodec --> udp_vid
+    cam_native -. Optional Preview .-> surf_preview
     
-    surf_dummy -- Encodes to --> hw_codec
-    hw_codec -- NAL Units --> udp_vid
-    udp_vid -- Inject to --> wfb_daemon
+    udp_vid -- Inject --> wfb_daemon
+    wfb_daemon -- Raw Radio --> hw_wfb
     
-    wfb_daemon -- Raw Radio Packets --> hw_wfb
+    %% Telemetry Routing
+    hw_fc -- "USB Serial" --> tele_router
+    tele_router -- UDP 14550 --> mav_router
+    mav_router -- UDP 14551 --> wfb_daemon
     
-    %% Telemetry Routing (The UDP Proxy Pattern)
-    hw_fc -- "USB Serial" <br> (Flight Controller Data) --> tele_router
-    tele_router -- UDP 14551 <br> (Drone -> GS) --> wfb_daemon
-    wfb_daemon -- UDP 14550 <br> (GS -> Drone) --> tele_router
-    tele_router -- "USB Serial" <br> (Execute GS Commands) --> hw_fc
+    %% Cross-Library Telemetry (Zero JNI)
+    cam_native -- "dlsym (Latency)" --> mav_native
+    mav_native -- "Injection" --> mav_router
     
-    tele_router -. "UDP 14552" <br> Local Telemetry Sync .-> mavlink
-    mavlink -. Render state .-> osd_view
+    mav_native -. "JNI Polling" .-> engine
+    engine -. Update .-> osd_view
 ```
 
 ## Core Components Overview
 
-### 1. `VtxService`
-The persistent foreground service orchestrating the entire system. Because it is completely decoupled from Android `Activity` lifecycles, it allows the VTX to remain active when the screen shuts off, or when running on a screenless stripped-down motherboard.
+### 1. `VtxService` & `VtxEngine`
+The persistent infrastructure layer. `VtxService` is a foreground service that prevents the OS from killing the telemetry and video streams. `VtxEngine` orchestrates the lifecycle of all native components.
 
-### 2. `VideoActivity`
-A purely passive debugging UI. It connects to the `VtxService` using a `ServiceConnection`. If a user explicitly turns on the "Preview" button, a surface is supplied to `VtxService` and appended to the camera pipeline so the user can see what's happening. The `VideoActivity` can be destroyed natively at any time without impacting the VTX video or telemetry transmission.
+### 2. NDK Data Plane (`libcamera_native.so`)
+Directly interfaces with `ACameraManager` and `AMediaCodec`. By bypassing the Java `Camera2` framework for the capture loop, we eliminate Garbage Collection (GC) jitter and achieve deterministic 240 FPS encoding. Encoded NAL units are handed off to the WFB-NG pipeline via a local UDP socket.
 
-### 3. `TelemetryRouter`
-The central hub for bidirectional Mavlink parsing. 
-WFB-NG acts as a transparent network bridge mapping local Android UDP Ports to the Ground Station's IP. The `TelemetryRouter` sits in the middle:
-- It opens a Native USB CDC serial connection to a physically attached Flight Controller.
-- Ground station commands received from the WFB-NG tunnel (e.g., Camera changes, RC overrides) are piped down to the FC.
-- FC Telemetry (Altitude, GPS) is piped up to the WFB-NG tunnel toward the Ground Station.
-- Simultaneously, telemetry state is copied locally to `127.0.0.1:14552`, giving the on-device `MavlinkNative` daemon current data for rendering the local OSD debug canvas.
+### 3. Telemetry Stack (`mavlink-router`)
+We use `mavlink-router` as the central MAVLink hub. 
+- **Internal Routing**: Telemetry data from the Flight Controller is bridged to UDP 14550 by the Java `TelemetryRouter`.
+- **Native Scheduler**: A C++ thread in `libmavlink.so` provides the high-frequency telemetry (Heartbeats, Encoder Latency).
+- **Zero-JNI Bridge**: The camera library resolves a symbol in the MAVLink library via `dlsym` to push latency updates into the native whiteboard without crossing back into Java.
+
+### 4. `VideoActivity`
+A purely optional UI binding. It allows for on-device preview and OSD display but can be closed or minimized without affecting the transmission.
