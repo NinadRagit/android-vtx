@@ -1,8 +1,11 @@
 [submodule "app/wfbngrtl8812/src/main/cpp/wfb-ng"]
-	path = app/wfbngrtl8812/src/main/cpp/wfb-ng
+	path = wfbngrtl8812/src/main/cpp/wfb-ng
 	url = https://github.com/svpcom/wfb-ng.git
 	branch = master
 
 [submodule "app/mavlink/src/main/cpp/mavlink-router"]
-	path = app/mavlink/src/main/cpp/mavlink-router
+	path = mavlink/src/main/cpp/mavlink-router
 	url = https://github.com/mavlink-router/mavlink-router.git
+[submodule "app/camera/src/main/cpp/opus"]
+	path = camera/src/main/cpp/opus
+	url = https://github.com/xiph/opus.git

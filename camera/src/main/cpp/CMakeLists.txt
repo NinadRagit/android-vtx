@@ -5,10 +5,20 @@ project("camera")
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 
+# Configure Opus to only build the static library
+set(OPUS_BUILD_PROGRAMS OFF CACHE BOOL "" FORCE)
+set(OPUS_BUILD_TESTING OFF CACHE BOOL "" FORCE)
+set(OPUS_BUILD_SHARED_LIBRARY OFF CACHE BOOL "" FORCE)
+add_subdirectory(opus)
+
+# Find Oboe from Prefab
+find_package(oboe REQUIRED CONFIG)
+
 # Add the camera native library
 add_library(camera_native SHARED
         camera_native_jni.cpp
-        CameraStreamerNative.cpp)
+        CameraStreamerNative.cpp
+        AudioStreamerNative.cpp)
 
 # Find necessary Android libraries
 find_library(log-lib log)
@@ -24,4 +34,6 @@ target_link_libraries(camera_native
         ${android-lib}
         ${camera2ndk-lib}
         ${mediandk-lib}
+        oboe::oboe
+        opus
 )

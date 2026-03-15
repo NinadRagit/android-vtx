@@ -45,15 +45,13 @@ android {
 }
 
 dependencies {
-    implementation(project(":app:mavlink"))
-    implementation(project(":app:wfbngrtl8812"))
-    implementation(project(":app:camera"))
+    implementation(project(":mavlink"))
+    implementation(project(":wfbngrtl8812"))
+    implementation(project(":camera"))
 
     implementation(libs.appcompat)
     implementation(libs.material)
     implementation(libs.philjay.mpandroidchart)
     
-    // USB Serial Driver for Telemetry forwarding from Flight Controller
-    // implementation('com.github.mik3y:usb-serial-for-android:3.8.0')
-    implementation project(':usbSerialForAndroid')
+    implementation('com.github.mik3y:usb-serial-for-android:3.8.0')
 }

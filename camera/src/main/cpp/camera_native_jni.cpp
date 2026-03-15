@@ -1,9 +1,11 @@
 #include <jni.h>
 #include <android/native_window_jni.h>
 #include "CameraStreamerNative.h"
+#include "AudioStreamerNative.h"
 
-// Singleton instance — only one camera pipeline at a time
-static CameraStreamerNative* g_streamer = nullptr;
+// Singleton instances
+static CameraStreamerNative* g_videoStreamer = nullptr;
+static AudioStreamerNative* g_audioStreamer = nullptr;
 
 /**
  * Helper: extract a NativeCameraConfig from a Java CameraConfig object.
@@ -133,13 +135,19 @@ JNIEXPORT void JNICALL
 Java_com_openipc_camera_CameraNative_nativeStartStreaming(
         JNIEnv* env, jclass clazz, jobject jConfig, jobject jSurface) {
 
-    if (g_streamer && g_streamer->isStreaming()) {
+    if (g_videoStreamer && g_videoStreamer->isStreaming()) {
         LOGW("nativeStartStreaming called while already streaming — stopping first");
-        g_streamer->stop();
-        delete g_streamer;
+        g_videoStreamer->stop();
+        delete g_videoStreamer;
+        
+        if (g_audioStreamer) {
+            g_audioStreamer->stop();
+            delete g_audioStreamer;
+        }
     }
 
-    g_streamer = new CameraStreamerNative();
+    g_videoStreamer = new CameraStreamerNative();
+    g_audioStreamer = new AudioStreamerNative();
 
     NativeCameraConfig cfg = extractConfig(env, jConfig);
 
@@ -148,30 +156,41 @@ Java_com_openipc_camera_CameraNative_nativeStartStreaming(
         previewWindow = ANativeWindow_fromSurface(env, jSurface);
     }
 
-    bool ok = g_streamer->start(cfg, previewWindow);
+    bool ok = g_videoStreamer->start(cfg, previewWindow);
     if (!ok) {
-        LOGE("Native camera pipeline failed to start");
-        delete g_streamer;
-        g_streamer = nullptr;
+        LOGE("Native video pipeline failed to start");
+        delete g_videoStreamer;
+        g_videoStreamer = nullptr;
         if (previewWindow) ANativeWindow_release(previewWindow);
+    } else {
+        // Start audio pipeline
+        if (!g_audioStreamer->start()) {
+            LOGE("Native audio pipeline failed to start (Option E / Oboe/Opus)");
+        }
     }
 }
 
 JNIEXPORT void JNICALL
 Java_com_openipc_camera_CameraNative_nativeStopStreaming(
         JNIEnv* env, jclass clazz) {
-    if (g_streamer) {
-        g_streamer->stop();
-        delete g_streamer;
-        g_streamer = nullptr;
-        LOGI("Native camera pipeline destroyed");
+    if (g_videoStreamer) {
+        g_videoStreamer->stop();
+        delete g_videoStreamer;
+        g_videoStreamer = nullptr;
+        LOGI("Native video pipeline destroyed");
+    }
+    if (g_audioStreamer) {
+        g_audioStreamer->stop();
+        delete g_audioStreamer;
+        g_audioStreamer = nullptr;
+        LOGI("Native audio pipeline destroyed");
     }
 }
 
 JNIEXPORT jboolean JNICALL
 Java_com_openipc_camera_CameraNative_nativeIsStreaming(
         JNIEnv* env, jclass clazz) {
-    return (g_streamer && g_streamer->isStreaming()) ? JNI_TRUE : JNI_FALSE;
+    return (g_videoStreamer && g_videoStreamer->isStreaming()) ? JNI_TRUE : JNI_FALSE;
 }
 
 } // extern "C"

@@ -13,6 +13,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.BIND_VPN_SERVICE" />
@@ -36,7 +37,7 @@
             android:name=".VtxService"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="connectedDevice|camera|dataSync" />
+            android:foregroundServiceType="microphone|camera|dataSync" />
 
         <service
             android:name=".WfbNgVpnService"

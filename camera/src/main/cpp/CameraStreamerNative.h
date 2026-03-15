@@ -23,9 +23,10 @@
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
 // Maximum WFB-NG payload size (must chunk NAL units larger than this)
-static constexpr int MAX_WFB_PAYLOAD = 3993;
+static constexpr int MAX_WFB_PAYLOAD = 65000; // Let WFB-NG handle link-layer fragmentation
 // UDP destination port for wfb-ng video input
 static constexpr int VIDEO_UDP_PORT = 8001;
+static constexpr int RTP_HEADER_SIZE = 12;
 
 /**
  * Native configuration struct — mirrors CameraConfig.java fields.
@@ -115,11 +116,16 @@ private:
     std::atomic<bool> streaming_{false};
     NativeCameraConfig config_;
 
+    // RTP State
+    uint16_t rtpSeqNumber_ = 0;
+    uint32_t rtpSsrc_ = 0x87654321; // Distinct from audio SSRC
+
     // SPS/PPS cache for prepending to keyframes
     std::vector<uint8_t> spsPpsCache_;
 
     // Latency rolling average
     std::vector<int> latencyHistory_;
+    bool isH265_ = false;
     static constexpr size_t LATENCY_WINDOW = 30;
 
     // ── Encoder polling thread ─────────────────────────────
@@ -131,7 +137,13 @@ private:
     bool setupEncoder();
     bool openCamera();
     bool createCaptureSession();
-    void sendOverUDP(const uint8_t* data, size_t len);
+
+    // Sends a full Annex B buffer (will be split into NAL units)
+    void sendOverUDP(const uint8_t* data, size_t len, uint32_t timestampUs);
+    
+    // Internal RTP packetization helpers
+    void sendNalu(const uint8_t* naluData, size_t naluSize, uint32_t rtpTs);
+    void sendOverUDP_Raw(const uint8_t* packetData, size_t packetLen);
 
     // ── NDK Callbacks (static C thunks) ────────────────────
     static void onDeviceDisconnected(void* ctx, ACameraDevice* dev);

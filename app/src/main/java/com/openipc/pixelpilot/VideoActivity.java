@@ -126,7 +126,7 @@ public class VideoActivity extends AppCompatActivity implements
     };
     private CameraHelper cameraHelper;
     private CameraConfig cameraConfig;
-    private static final int CAMERA_PERMISSION_REQUEST_CODE = 100;
+    private static final int PERMISSIONS_REQUEST_CODE = 100;
 
     private static final String PREF_DRONE_USERNAME = "drone_username";
     private static final String PREF_DRONE_PASSWORD = "drone_password";
@@ -283,7 +283,7 @@ public class VideoActivity extends AppCompatActivity implements
         // UI Setup
         initializeUI();
 
-        if (checkCameraPermission()) {
+        if (checkPermissions()) {
             startVtxService();
         }
 
@@ -344,7 +344,7 @@ public class VideoActivity extends AppCompatActivity implements
     private final android.view.SurfaceHolder.Callback surfaceCallback = new android.view.SurfaceHolder.Callback() {
         @Override
         public void surfaceCreated(@NonNull android.view.SurfaceHolder holder) {
-            if (checkCameraPermission()) {
+            if (checkPermissions()) {
                 if (cameraConfig == null) cameraConfig = CameraConfig.load(VideoActivity.this);
                 if (vtxService != null) {
                     Surface previewSurface = binding.btnPreviewToggle.isChecked() ? holder.getSurface() : null;
@@ -367,7 +367,7 @@ public class VideoActivity extends AppCompatActivity implements
             vtxService.getEngine().getWfbLinkManager().setListener(this);
             vtxService.getEngine().setMavlinkDataListener(this);
             // If the surface was already created before binding finished, start it now
-            if (binding.mainVideo.getHolder().getSurface().isValid() && checkCameraPermission()) {
+            if (binding.mainVideo.getHolder().getSurface().isValid() && checkPermissions()) {
                 if (cameraConfig == null) cameraConfig = CameraConfig.load(this);
                 Surface previewSurface = binding.btnPreviewToggle.isChecked() ? binding.mainVideo.getHolder().getSurface() : null;
                 vtxService.getEngine().startNativeCamera(cameraConfig, previewSurface);
@@ -468,9 +468,15 @@ public class VideoActivity extends AppCompatActivity implements
         }
     }
 
-    private boolean checkCameraPermission() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, CAMERA_PERMISSION_REQUEST_CODE);
+    private boolean checkPermissions() {
+        boolean hasCamera = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED;
+        boolean hasAudio = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
+        
+        if (!hasCamera || !hasAudio) {
+            ActivityCompat.requestPermissions(this, new String[]{
+                Manifest.permission.CAMERA,
+                Manifest.permission.RECORD_AUDIO
+            }, PERMISSIONS_REQUEST_CODE);
             return false;
         }
         return true;
@@ -479,11 +485,18 @@ public class VideoActivity extends AppCompatActivity implements
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == CAMERA_PERMISSION_REQUEST_CODE) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+        if (requestCode == PERMISSIONS_REQUEST_CODE) {
+            boolean allGranted = true;
+            for (int res : grantResults) {
+                if (res != PackageManager.PERMISSION_GRANTED) {
+                    allGranted = false;
+                    break;
+                }
+            }
+            if (allGranted && grantResults.length > 0) {
                 resetApp();
             } else {
-                Toast.makeText(this, "Camera permission is required for VTX mode", Toast.LENGTH_LONG).show();
+                Toast.makeText(this, "Camera and Audio permissions are required for VTX mode", Toast.LENGTH_LONG).show();
             }
         }
     }

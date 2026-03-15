@@ -143,23 +143,171 @@ bool CameraStreamerNative::setupUDP() {
     return true;
 }
 
-void CameraStreamerNative::sendOverUDP(const uint8_t* data, size_t len) {
-    if (udpSocket_ < 0 || data == nullptr || len == 0) return;
-
+void CameraStreamerNative::sendOverUDP_Raw(const uint8_t* packetData, size_t packetLen) {
+    if (udpSocket_ < 0) return;
     struct sockaddr_in dest{};
     dest.sin_family      = AF_INET;
     dest.sin_port        = htons(VIDEO_UDP_PORT);
     dest.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    sendto(udpSocket_, packetData, packetLen, 0, (struct sockaddr*)&dest, sizeof(dest));
+}
 
-    if (len <= MAX_WFB_PAYLOAD) {
-        sendto(udpSocket_, data, len, 0, (struct sockaddr*)&dest, sizeof(dest));
+void CameraStreamerNative::sendNalu(const uint8_t* naluData, size_t naluSize, uint32_t rtpTs) {
+    if (naluSize == 0) return;
+
+    const size_t MAX_PAYLOAD_SIZE = 1400; // fit well within wfb_tx's 1450 MTU
+    uint32_t ssrc = htonl(rtpSsrc_);
+    
+    if (naluSize <= MAX_PAYLOAD_SIZE) {
+        // Single NAL unit packet
+        std::vector<uint8_t> packet(12 + naluSize);
+        packet[0] = 0x80;
+        packet[1] = 97;
+        uint16_t seq = htons(rtpSeqNumber_++);
+        memcpy(&packet[2], &seq, 2);
+        memcpy(&packet[4], &rtpTs, 4);
+        memcpy(&packet[8], &ssrc, 4);
+        
+        memcpy(&packet[12], naluData, naluSize);
+        sendOverUDP_Raw(packet.data(), packet.size());
     } else {
-        // Fragment large NAL units
-        size_t offset = 0;
-        while (offset < len) {
-            size_t chunk = std::min((size_t)MAX_WFB_PAYLOAD, len - offset);
-            sendto(udpSocket_, data + offset, chunk, 0, (struct sockaddr*)&dest, sizeof(dest));
-            offset += chunk;
+        // Fragmentation (FU-A)
+        if (isH265_) {
+            // H.265 FU-A
+            uint8_t payloadHdr0 = naluData[0];
+            uint8_t payloadHdr1 = naluData[1];
+            uint8_t nalType = (payloadHdr0 >> 1) & 0x3F;
+            
+            uint8_t fuIndicator0 = (payloadHdr0 & 0x81) | (49 << 1); 
+            uint8_t fuIndicator1 = payloadHdr1;
+            
+            const uint8_t* payload = naluData + 2;
+            size_t remaining = naluSize - 2;
+            bool isFirst = true;
+            
+            while (remaining > 0) {
+                size_t chunkSize = std::min(remaining, MAX_PAYLOAD_SIZE);
+                bool isLast = (chunkSize == remaining);
+                
+                uint8_t fuHeader = nalType;
+                if (isFirst) fuHeader |= 0x80; // S-bit
+                if (isLast) fuHeader |= 0x40;  // E-bit
+                
+                std::vector<uint8_t> packet(12 + 3 + chunkSize);
+                packet[0] = 0x80;
+                packet[1] = 97;
+                uint16_t seq = htons(rtpSeqNumber_++);
+                memcpy(&packet[2], &seq, 2);
+                memcpy(&packet[4], &rtpTs, 4);
+                memcpy(&packet[8], &ssrc, 4);
+                
+                packet[12] = fuIndicator0;
+                packet[13] = fuIndicator1;
+                packet[14] = fuHeader;
+                memcpy(&packet[15], payload, chunkSize);
+                
+                sendOverUDP_Raw(packet.data(), packet.size());
+                
+                payload += chunkSize;
+                remaining -= chunkSize;
+                isFirst = false;
+            }
+        } else {
+            // H.264 FU-A
+            uint8_t nalHdr = naluData[0];
+            uint8_t nalType = nalHdr & 0x1F;
+            uint8_t fuIndicator = (nalHdr & 0xE0) | 28; // FU-A type is 28
+            
+            const uint8_t* payload = naluData + 1;
+            size_t remaining = naluSize - 1;
+            bool isFirst = true;
+            
+            while (remaining > 0) {
+                size_t chunkSize = std::min(remaining, MAX_PAYLOAD_SIZE);
+                bool isLast = (chunkSize == remaining);
+                
+                uint8_t fuHeader = nalType;
+                if (isFirst) fuHeader |= 0x80; // S-bit
+                if (isLast) fuHeader |= 0x40;  // E-bit
+                
+                std::vector<uint8_t> packet(12 + 2 + chunkSize);
+                packet[0] = 0x80;
+                packet[1] = 97;
+                uint16_t seq = htons(rtpSeqNumber_++);
+                memcpy(&packet[2], &seq, 2);
+                memcpy(&packet[4], &rtpTs, 4);
+                memcpy(&packet[8], &ssrc, 4);
+                
+                packet[12] = fuIndicator;
+                packet[13] = fuHeader;
+                memcpy(&packet[14], payload, chunkSize);
+                
+                sendOverUDP_Raw(packet.data(), packet.size());
+                
+                payload += chunkSize;
+                remaining -= chunkSize;
+                isFirst = false;
+            }
+        }
+    }
+}
+
+void CameraStreamerNative::sendOverUDP(const uint8_t* data, size_t len, uint32_t timestampUs) {
+    if (udpSocket_ < 0 || data == nullptr || len == 0) return;
+
+    // Convert timestamp to 90kHz RTP timestamp
+    uint32_t rtpTs = htonl((uint32_t)((timestampUs / 1000000.0) * 90000.0));
+
+    // Parse Annex B and send each NALU
+    size_t i = 0;
+    while (i < len) {
+        // Find next start code
+        int startCodeLen = 0;
+        if (i + 2 < len && data[i] == 0 && data[i+1] == 0 && data[i+2] == 1) {
+            startCodeLen = 3;
+        } else if (i + 3 < len && data[i] == 0 && data[i+1] == 0 && data[i+2] == 0 && data[i+3] == 1) {
+            startCodeLen = 4;
+        }
+
+        if (startCodeLen > 0) {
+            i += startCodeLen;
+            size_t nalStart = i;
+            
+            // Find end of this NALU (next start code or end of buffer)
+            size_t nalEnd = len;
+            for (size_t j = nalStart; j < len - 2; ++j) {
+                if (data[j] == 0 && data[j+1] == 0 && data[j+2] == 1) {
+                    if (j > nalStart && data[j-1] == 0) {
+                        nalEnd = j - 1;
+                    } else {
+                        nalEnd = j;
+                    }
+                    break;
+                }
+            }
+
+            size_t nalSize = nalEnd - nalStart;
+            if (nalSize > 0) {
+                sendNalu(data + nalStart, nalSize, rtpTs);
+            }
+            i = nalEnd;
+        } else {
+            // No start code at beginning? scan forward to find first start code.
+            size_t nextStart = len;
+            for (size_t j = i; j < len - 2; ++j) {
+                if (data[j] == 0 && data[j+1] == 0 && data[j+2] == 1) {
+                    if (j > i && data[j-1] == 0) {
+                        nextStart = j - 1;
+                    } else {
+                        nextStart = j;
+                    }
+                    break;
+                }
+            }
+            if (nextStart > i) {
+                sendNalu(data + i, nextStart - i, rtpTs);
+            }
+            i = nextStart;
         }
     }
 }
@@ -266,8 +414,9 @@ bool CameraStreamerNative::setupEncoder() {
         return false;
     }
 
-    LOGI("AMediaCodec encoder started (%s, %dx%d, %d bps)",
-         mime, config_.width, config_.height, config_.bitrate);
+    isH265_ = (strcmp(mime, "video/hevc") == 0);
+    LOGI("AMediaCodec encoder started (%s, %dx%d, %d bps), isH265_=%d",
+         mime, config_.width, config_.height, config_.bitrate, (int)isH265_);
     return true;
 }
 
@@ -333,10 +482,10 @@ void CameraStreamerNative::encoderLoop() {
                 }
 
                 if ((info.flags & 1 /* BUFFER_FLAG_KEY_FRAME */) && !spsPpsCache_.empty()) {
-                    sendOverUDP(spsPpsCache_.data(), spsPpsCache_.size());
+                    sendOverUDP(spsPpsCache_.data(), spsPpsCache_.size(), info.presentationTimeUs);
                 }
 
-                sendOverUDP(nalData, nalLen);
+                sendOverUDP(nalData, nalLen, info.presentationTimeUs);
             }
 
             AMediaCodec_releaseOutputBuffer(encoder_, idx, false);
