@@ -17,7 +17,7 @@ static NativeCameraConfig extractConfig(JNIEnv* env, jobject jConfig) {
     jclass configClass = env->GetObjectClass(jConfig);
 
     // Get the CameraLayer object
-    jfieldID camField = env->GetFieldID(configClass, "camera", "Lcom/openipc/pixelpilot/CameraConfig$CameraLayer;");
+    jfieldID camField = env->GetFieldID(configClass, "camera", "Lcom/openipc/pixelpilot/config/CameraConfig$CameraLayer;");
     jobject camObj = env->GetObjectField(jConfig, camField);
     jclass camClass = env->GetObjectClass(camObj);
 
@@ -84,7 +84,7 @@ static NativeCameraConfig extractConfig(JNIEnv* env, jobject jConfig) {
     cfg.shutterSpeed = env->GetLongField(camObj, fid);
 
     // Get the EncoderLayer object
-    jfieldID encField = env->GetFieldID(configClass, "encoder", "Lcom/openipc/pixelpilot/CameraConfig$EncoderLayer;");
+    jfieldID encField = env->GetFieldID(configClass, "encoder", "Lcom/openipc/pixelpilot/config/CameraConfig$EncoderLayer;");
     jobject encObj = env->GetObjectField(jConfig, encField);
     jclass encClass = env->GetObjectClass(encObj);
 
