@@ -1,7 +1,7 @@
 #include <jni.h>
 #include <android/native_window_jni.h>
-#include "CameraStreamerNative.h"
-#include "AudioStreamerNative.h"
+#include "../video/CameraStreamerNative.h"
+#include "../audio/AudioStreamerNative.h"
 
 // Singleton instances
 static CameraStreamerNative* g_videoStreamer = nullptr;

@@ -1,4 +1,14 @@
-package com.openipc.pixelpilot;
+package com.openipc.pixelpilot.ui;
+
+import com.openipc.pixelpilot.R;
+import com.openipc.pixelpilot.config.*;
+import com.openipc.pixelpilot.hardware.*;
+import com.openipc.pixelpilot.telemetry.*;
+import com.openipc.pixelpilot.ui.*;
+import com.openipc.pixelpilot.ui.osd.*;
+import com.openipc.pixelpilot.service.*;
+import com.openipc.pixelpilot.wfb.*;
+
 
 import android.annotation.SuppressLint;
 import android.app.Dialog;
@@ -61,8 +71,8 @@ import com.openipc.mavlink.MavlinkData;
 import com.openipc.mavlink.MavlinkNative;
 import com.openipc.mavlink.MavlinkUpdate;
 import com.openipc.pixelpilot.databinding.ActivityVideoBinding;
-import com.openipc.pixelpilot.osd.OSDElement;
-import com.openipc.pixelpilot.osd.OSDManager;
+import com.openipc.pixelpilot.ui.osd.OSDElement;
+import com.openipc.pixelpilot.ui.osd.OSDManager;
 import com.openipc.wfbngrtl8812.WfbNGStats;
 import com.openipc.wfbngrtl8812.WfbNGStatsChanged;
 import com.openipc.wfbngrtl8812.WfbNgLink;

@@ -84,7 +84,7 @@
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintVertical_bias="1.0">
 
-        <com.openipc.pixelpilot.osd.MovableLayout
+        <com.openipc.pixelpilot.ui.osd.MovableLayout
             android:id="@+id/itemRecIndicator"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -98,9 +98,9 @@
                 android:layout_height="38dp"
                 android:src="@drawable/baseline_fiber_manual_record_24"
                 android:visibility="invisible" />
-        </com.openipc.pixelpilot.osd.MovableLayout>
+        </com.openipc.pixelpilot.ui.osd.MovableLayout>
 
-        <com.openipc.pixelpilot.osd.MovableLayout
+        <com.openipc.pixelpilot.ui.osd.MovableLayout
             android:id="@+id/itemLinkStatus"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -123,9 +123,9 @@
                 android:text="Link Status"
                 android:textColor="@color/colorWhite"
                 android:textSize="14sp" />
-        </com.openipc.pixelpilot.osd.MovableLayout>
+        </com.openipc.pixelpilot.ui.osd.MovableLayout>
 
-        <com.openipc.pixelpilot.osd.MovableLayout
+        <com.openipc.pixelpilot.ui.osd.MovableLayout
             android:id="@+id/itemSat"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -154,9 +154,9 @@
                 android:text="0"
                 android:textColor="@color/colorWhite"
                 android:textSize="14sp" />
-        </com.openipc.pixelpilot.osd.MovableLayout>
+        </com.openipc.pixelpilot.ui.osd.MovableLayout>
 
-        <com.openipc.pixelpilot.osd.MovableLayout
+        <com.openipc.pixelpilot.ui.osd.MovableLayout
             android:id="@+id/itemLon"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -179,9 +179,9 @@
                 android:text="0.0000000"
                 android:textColor="@color/colorWhite"
                 android:textSize="14sp" />
-        </com.openipc.pixelpilot.osd.MovableLayout>
+        </com.openipc.pixelpilot.ui.osd.MovableLayout>
 
-        <com.openipc.pixelpilot.osd.MovableLayout
+        <com.openipc.pixelpilot.ui.osd.MovableLayout
             android:id="@+id/itemLat"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -204,9 +204,9 @@
                 android:text="0.0000000"
                 android:textColor="@color/colorWhite"
                 android:textSize="14sp" />
-        </com.openipc.pixelpilot.osd.MovableLayout>
+        </com.openipc.pixelpilot.ui.osd.MovableLayout>
 
-        <com.openipc.pixelpilot.osd.MovableLayout
+        <com.openipc.pixelpilot.ui.osd.MovableLayout
             android:id="@+id/itemAlt"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -229,9 +229,9 @@
                 android:text="0 m"
                 android:textColor="@color/colorWhite"
                 android:textSize="14sp" />
-        </com.openipc.pixelpilot.osd.MovableLayout>
+        </com.openipc.pixelpilot.ui.osd.MovableLayout>
 
-        <com.openipc.pixelpilot.osd.MovableLayout
+        <com.openipc.pixelpilot.ui.osd.MovableLayout
             android:id="@+id/itemThrottle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -254,9 +254,9 @@
                 android:text="0 %"
                 android:textColor="@color/colorWhite"
                 android:textSize="14sp" />
-        </com.openipc.pixelpilot.osd.MovableLayout>
+        </com.openipc.pixelpilot.ui.osd.MovableLayout>
 
-        <com.openipc.pixelpilot.osd.MovableLayout
+        <com.openipc.pixelpilot.ui.osd.MovableLayout
             android:id="@+id/itemBat"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -279,9 +279,9 @@
                 android:text="0 Volt"
                 android:textColor="@color/colorWhite"
                 android:textSize="14sp" />
-        </com.openipc.pixelpilot.osd.MovableLayout>
+        </com.openipc.pixelpilot.ui.osd.MovableLayout>
 
-        <com.openipc.pixelpilot.osd.MovableLayout
+        <com.openipc.pixelpilot.ui.osd.MovableLayout
             android:id="@+id/itemBatCell"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -304,9 +304,9 @@
                 android:text="0 Volt/Cell"
                 android:textColor="@color/colorWhite"
                 android:textSize="14sp" />
-        </com.openipc.pixelpilot.osd.MovableLayout>
+        </com.openipc.pixelpilot.ui.osd.MovableLayout>
 
-        <com.openipc.pixelpilot.osd.MovableLayout
+        <com.openipc.pixelpilot.ui.osd.MovableLayout
             android:id="@+id/itemDis"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -329,9 +329,9 @@
                 android:text="0 m"
                 android:textColor="@color/colorWhite"
                 android:textSize="14sp" />
-        </com.openipc.pixelpilot.osd.MovableLayout>
+        </com.openipc.pixelpilot.ui.osd.MovableLayout>
 
-        <com.openipc.pixelpilot.osd.MovableLayout
+        <com.openipc.pixelpilot.ui.osd.MovableLayout
             android:id="@+id/itemTotDis"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -354,9 +354,9 @@
                 android:text="0 m"
                 android:textColor="@color/colorWhite"
                 android:textSize="14sp" />
-        </com.openipc.pixelpilot.osd.MovableLayout>
+        </com.openipc.pixelpilot.ui.osd.MovableLayout>
 
-        <com.openipc.pixelpilot.osd.MovableLayout
+        <com.openipc.pixelpilot.ui.osd.MovableLayout
             android:id="@+id/itemTimer"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -379,9 +379,9 @@
                 android:text="00:00"
                 android:textColor="@color/colorWhite"
                 android:textSize="14sp" />
-        </com.openipc.pixelpilot.osd.MovableLayout>
+        </com.openipc.pixelpilot.ui.osd.MovableLayout>
 
-        <com.openipc.pixelpilot.osd.MovableLayout
+        <com.openipc.pixelpilot.ui.osd.MovableLayout
             android:id="@+id/itemRCLink"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -404,9 +404,9 @@
                 android:text="0 %"
                 android:textColor="@color/colorWhite"
                 android:textSize="14sp" />
-        </com.openipc.pixelpilot.osd.MovableLayout>
+        </com.openipc.pixelpilot.ui.osd.MovableLayout>
 
-        <com.openipc.pixelpilot.osd.MovableLayout
+        <com.openipc.pixelpilot.ui.osd.MovableLayout
             android:id="@+id/itemHomeNav"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -439,9 +439,9 @@
                 android:layout_width="16dp"
                 android:layout_height="38dp"
                 android:src="@drawable/navigation_rev" />
-        </com.openipc.pixelpilot.osd.MovableLayout>
+        </com.openipc.pixelpilot.ui.osd.MovableLayout>
 
-        <com.openipc.pixelpilot.osd.MovableLayout
+        <com.openipc.pixelpilot.ui.osd.MovableLayout
             android:id="@+id/itemGndSpeed"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -464,9 +464,9 @@
                 android:text="0 km/h"
                 android:textColor="@color/colorWhite"
                 android:textSize="14sp" />
-        </com.openipc.pixelpilot.osd.MovableLayout>
+        </com.openipc.pixelpilot.ui.osd.MovableLayout>
 
-        <com.openipc.pixelpilot.osd.MovableLayout
+        <com.openipc.pixelpilot.ui.osd.MovableLayout
             android:id="@+id/itemAirSpeed"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -489,9 +489,9 @@
                 android:text="0 km/h"
                 android:textColor="@color/colorWhite"
                 android:textSize="14sp" />
-        </com.openipc.pixelpilot.osd.MovableLayout>
+        </com.openipc.pixelpilot.ui.osd.MovableLayout>
 
-        <com.openipc.pixelpilot.osd.MovableLayout
+        <com.openipc.pixelpilot.ui.osd.MovableLayout
             android:id="@+id/itemRoll"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -514,9 +514,9 @@
                 android:text="0 degree"
                 android:textColor="@color/colorWhite"
                 android:textSize="14sp" />
-        </com.openipc.pixelpilot.osd.MovableLayout>
+        </com.openipc.pixelpilot.ui.osd.MovableLayout>
 
-        <com.openipc.pixelpilot.osd.MovableLayout
+        <com.openipc.pixelpilot.ui.osd.MovableLayout
             android:id="@+id/itemPitch"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -539,9 +539,9 @@
                 android:text="0 degree"
                 android:textColor="@color/colorWhite"
                 android:textSize="14sp" />
-        </com.openipc.pixelpilot.osd.MovableLayout>
+        </com.openipc.pixelpilot.ui.osd.MovableLayout>
 
-        <com.openipc.pixelpilot.osd.MovableLayout
+        <com.openipc.pixelpilot.ui.osd.MovableLayout
             android:id="@+id/itemStatus"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -557,9 +557,9 @@
                 android:text="Waiting status..."
                 android:textColor="@color/colorWhite"
                 android:textSize="16sp" />
-        </com.openipc.pixelpilot.osd.MovableLayout>
+        </com.openipc.pixelpilot.ui.osd.MovableLayout>
 
-        <com.openipc.pixelpilot.osd.MovableLayout
+        <com.openipc.pixelpilot.ui.osd.MovableLayout
             android:id="@+id/itemCurrent"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -575,9 +575,9 @@
                 android:text="Amp 0.0"
                 android:textColor="@color/colorWhite"
                 android:textSize="16sp" />
-        </com.openipc.pixelpilot.osd.MovableLayout>
+        </com.openipc.pixelpilot.ui.osd.MovableLayout>
 
-        <com.openipc.pixelpilot.osd.MovableLayout
+        <com.openipc.pixelpilot.ui.osd.MovableLayout
             android:id="@+id/itemFlightMode"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -593,9 +593,9 @@
                 android:text="Manual"
                 android:textColor="@color/colorWhite"
                 android:textSize="16sp" />
-        </com.openipc.pixelpilot.osd.MovableLayout>
+        </com.openipc.pixelpilot.ui.osd.MovableLayout>
 
-        <com.openipc.pixelpilot.osd.MovableLayout
+        <com.openipc.pixelpilot.ui.osd.MovableLayout
             android:id="@+id/itemGSBattery"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -618,9 +618,9 @@
                 android:text="100%"
                 android:textColor="@color/colorWhite"
                 android:textSize="14sp" />
-        </com.openipc.pixelpilot.osd.MovableLayout>
+        </com.openipc.pixelpilot.ui.osd.MovableLayout>
 
-        <com.openipc.pixelpilot.osd.MovableLayout
+        <com.openipc.pixelpilot.ui.osd.MovableLayout
             android:id="@+id/itemEncLatencyAvg"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -643,9 +643,9 @@
                 android:text="0 ms"
                 android:textColor="@color/colorWhite"
                 android:textSize="14sp" />
-        </com.openipc.pixelpilot.osd.MovableLayout>
+        </com.openipc.pixelpilot.ui.osd.MovableLayout>
         
-        <com.openipc.pixelpilot.osd.MovableLayout
+        <com.openipc.pixelpilot.ui.osd.MovableLayout
             android:id="@+id/itemEncLatencyRaw"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -668,9 +668,9 @@
                 android:text="0 ms (raw)"
                 android:textColor="@color/colorWhite"
                 android:textSize="14sp" />
-        </com.openipc.pixelpilot.osd.MovableLayout>
+        </com.openipc.pixelpilot.ui.osd.MovableLayout>
 
-        <com.openipc.pixelpilot.osd.MovableLayout
+        <com.openipc.pixelpilot.ui.osd.MovableLayout
             android:id="@+id/btnRecord"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -693,7 +693,7 @@
                 android:textSize="14sp"
                 android:visibility="gone"
                 android:textColor="@android:color/white" />
-        </com.openipc.pixelpilot.osd.MovableLayout>
+        </com.openipc.pixelpilot.ui.osd.MovableLayout>
     </FrameLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

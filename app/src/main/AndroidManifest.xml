@@ -34,13 +34,13 @@
         android:supportsRtl="true">
         <!-- Headless Orchestrator Service -->
         <service
-            android:name=".VtxService"
+            android:name=".service.VtxService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="microphone|camera|dataSync" />
 
         <service
-            android:name=".WfbNgVpnService"
+            android:name=".service.WfbNgVpnService"
             android:label="Wfb-Ng VPN Service"
             android:permission="android.permission.BIND_VPN_SERVICE"
             android:exported="true">
@@ -60,7 +60,7 @@
         </provider>
 
         <activity
-            android:name=".VideoActivity"
+            android:name=".ui.VideoActivity"
             android:exported="true"
             android:launchMode="singleInstance"
             android:screenOrientation="sensorLandscape"

@@ -16,9 +16,9 @@ find_package(oboe REQUIRED CONFIG)
 
 # Add the camera native library
 add_library(camera_native SHARED
-        camera_native_jni.cpp
-        CameraStreamerNative.cpp
-        AudioStreamerNative.cpp)
+        jni/camera_native_jni.cpp
+        video/CameraStreamerNative.cpp
+        audio/AudioStreamerNative.cpp)
 
 # Find necessary Android libraries
 find_library(log-lib log)

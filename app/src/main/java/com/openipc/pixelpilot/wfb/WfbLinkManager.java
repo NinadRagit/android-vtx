@@ -1,4 +1,14 @@
-package com.openipc.pixelpilot;
+package com.openipc.pixelpilot.wfb;
+
+import com.openipc.pixelpilot.R;
+import com.openipc.pixelpilot.config.*;
+import com.openipc.pixelpilot.hardware.*;
+import com.openipc.pixelpilot.telemetry.*;
+import com.openipc.pixelpilot.ui.*;
+import com.openipc.pixelpilot.ui.osd.*;
+import com.openipc.pixelpilot.service.*;
+import com.openipc.pixelpilot.wfb.*;
+
 
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
