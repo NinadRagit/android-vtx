@@ -1,64 +1,35 @@
 {
-  // Default configuration for android-vtx.
   "camera": {
-    // Android Camera2 ID. Usually '0' for main rear, '1' for front.
     "cameraId": "0",
-    // Target capture resolution. Width and height must be supported by the camera.
     "width": 1280,
     "height": 720,
-    // Target frames per second.
     "fps": 30,
-    // Lock exposure to current value. Reduces flicker for FPV when true.
     "aeLocked": false,
-    // Exposure compensation in 1/6 EV steps, range usually -12 to +12.
     "aeCompensation": 0,
-    // Auto-focus mode: 0=off, 3=continuous-video.
     "afMode": 0,
-    // Edge enhancement: 0=off, 1=fast, 2=high-quality.
     "edgeMode": 0,
-    // Noise reduction: 0=off, 1=fast, 2=high-quality, 3=minimal, 4=zero-shutter-lag.
     "noiseReduction": 0,
-    // Electronic Image Stabilization (EIS). False is recommended for FPV to minimize latency.
     "videoStabilization": false,
-    // Optical Image Stabilization (OIS): 0=off, 1=on.
     "opticalStabilizationMode": 0,
-    // Auto White Balance Mode: 0=off, 1=auto, 2=incandescent, 3=fluorescent, 5=daylight, 6=cloudy.
     "awbMode": 1,
-    // Lock AWB to current values to prevent color shifting.
     "awbLocked": false,
-    // Tonemap mapping curve: 0=contrast_curve, 1=fast, 2=high_quality.
     "tonemapMode": 1,
-    // Lens shading correction: 0=off, 1=fast, 2=high_quality.
     "lensShadingMode": 1,
-    // Hot pixel correction: 0=off, 1=fast, 2=high_quality.
     "hotPixelMode": 1,
-    // Manual ISO. 0 = auto.
     "iso": 0,
-    // Manual shutter speed in nanoseconds. 0 = auto.
     "shutterSpeed": 0
   },
   "encoder": {
-    // Target video bitrate in bits per second (e.g., 4000000 = 4 Mbps).
     "bitrate": 4000000,
-    // Keyframe interval (I-frame) in seconds. 1 is standard for FPV recovery.
     "keyframeInterval": 1,
-    // Intra-refresh period. 0 = disabled. Set to fps/2 for smooth intra-refresh.
     "intraRefreshPeriod": 0,
-    // Hardware encoder codec choice: 'h264' or 'h265'.
     "codec": "h264",
-    // Bitrate control mode: 0=Constant Bitrate (CBR), 1=Variable Bitrate (VBR).
     "bitrateMode": 0,
-    // Number of B-frames. Use 0 for FPV to minimize look-ahead encoding latency.
     "bFrames": 0,
-    // Encoder Latency Mode: 0=Realtime (minimum latency), 1=Normal.
     "encoderLatency": 0,
-    // Encoder Priority: 0=Realtime, 1=Best effort.
     "encoderPriority": 0,
-    // Operating Rate (fps). Usually matches camera fps. 0 = auto.
     "operatingRate": 0,
-    // Codec Profile. H264: 1=Baseline, 2=Main, 8=High. H265: 1=Main, 2=Main10. 0=Auto.
     "codecProfile": 0,
-    // Codec Level. 0=Auto. Warning: Non-zero values may crash some Android HALs.
     "codecLevel": 0
   }
 }

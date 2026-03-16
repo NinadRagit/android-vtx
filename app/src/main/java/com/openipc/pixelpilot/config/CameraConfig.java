@@ -219,10 +219,7 @@ public class CameraConfig {
     }
 
     public static CameraConfig fromJson(String json) throws JSONException {
-        // Strip out // and /* */ comments since org.json doesn't support JSON5
-        String cleanJson = json.replaceAll("(?:/\\*(?:[^*]|(?:\\*+[^*/]))*\\*+/)|(?://.*)", "");
-        
-        JSONObject o = new JSONObject(cleanJson);
+        JSONObject o = new JSONObject(json);
         CameraConfig c = new CameraConfig();
 
         JSONObject cam = o.optJSONObject("camera");
