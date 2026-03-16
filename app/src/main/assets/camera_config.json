@@ -1,0 +1,35 @@
+{
+  "camera": {
+    "cameraId": "0",
+    "width": 1280,
+    "height": 720,
+    "fps": 30,
+    "aeLocked": false,
+    "aeCompensation": 0,
+    "afMode": 0,
+    "edgeMode": 0,
+    "noiseReduction": 0,
+    "videoStabilization": false,
+    "opticalStabilizationMode": 0,
+    "awbMode": 1,
+    "awbLocked": false,
+    "tonemapMode": 1,
+    "lensShadingMode": 1,
+    "hotPixelMode": 1,
+    "iso": 0,
+    "shutterSpeed": 0
+  },
+  "encoder": {
+    "bitrate": 4000000,
+    "keyframeInterval": 1,
+    "intraRefreshPeriod": 0,
+    "codec": "h264",
+    "bitrateMode": 0,
+    "bFrames": 0,
+    "encoderLatency": 0,
+    "encoderPriority": 0,
+    "operatingRate": 0,
+    "codecProfile": 0,
+    "codecLevel": 0
+  }
+}

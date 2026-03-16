@@ -120,17 +120,33 @@ public class CameraConfig {
 
     // ── Persistence ──────────────────────────────────────────────────────────
 
-    /** Load config from internal storage. Returns defaults if file not found. */
+    /** Load config from internal storage, or fallback to default asset. */
     public static CameraConfig load(Context ctx) {
         File f = new File(ctx.getFilesDir(), CONFIG_FILENAME);
-        if (!f.exists()) return new CameraConfig();
-        try (BufferedReader r = new BufferedReader(new FileReader(f))) {
+        if (f.exists()) {
+            try (BufferedReader r = new BufferedReader(new FileReader(f))) {
+                StringBuilder sb = new StringBuilder();
+                String line;
+                while ((line = r.readLine()) != null) sb.append(line);
+                return fromJson(sb.toString());
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to load user config, falling back to asset", e);
+            }
+        }
+        
+        // Fallback: load bundled asset
+        return loadDefaultAsset(ctx);
+    }
+
+    private static CameraConfig loadDefaultAsset(Context ctx) {
+        try (InputStream is = ctx.getAssets().open(CONFIG_FILENAME);
+             BufferedReader r = new BufferedReader(new InputStreamReader(is))) {
             StringBuilder sb = new StringBuilder();
             String line;
             while ((line = r.readLine()) != null) sb.append(line);
             return fromJson(sb.toString());
         } catch (Exception e) {
-            Log.e(TAG, "Failed to load config, using defaults", e);
+            Log.e(TAG, "Failed to load default assets/camera_config.json! Using hardcoded defaults.", e);
             return new CameraConfig();
         }
     }
