@@ -37,6 +37,8 @@ public:
 
 private:
     std::shared_ptr<oboe::AudioStream> mStream;
+    OpusEncoder *mOpusEncoder = nullptr;
+    int mUdpSocket = -1;
 
     struct sockaddr_in mDestAddr;
 
