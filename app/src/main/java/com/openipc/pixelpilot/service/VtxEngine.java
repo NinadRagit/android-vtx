@@ -116,12 +116,13 @@ public class VtxEngine implements WfbNGStatsChanged, MavlinkUpdate {
 
     /**
      * Start the C++ camera pipeline.
-     * @param config  CameraConfig with all camera/encoder parameters
-     * @param surface Preview Surface, or null for headless
+     * @param config      CameraConfig with all camera/encoder parameters
+     * @param audioConfig AudioConfig with all oboe/opus parameters
+     * @param surface     Preview Surface, or null for headless
      */
-    public void startNativeCamera(CameraConfig config, Surface surface) {
+    public void startNativeCamera(CameraConfig config, AudioConfig audioConfig, Surface surface) {
         Log.i(TAG, "Starting NATIVE camera pipeline: " + config.getSummary());
-        CameraNative.nativeStartStreaming(config, surface);
+        CameraNative.nativeStartStreaming(config, audioConfig, surface);
     }
 
     /**

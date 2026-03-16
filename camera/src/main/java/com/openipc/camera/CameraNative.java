@@ -19,11 +19,11 @@ public class CameraNative {
     /**
      * Start the native camera → encoder → UDP pipeline.
      *
-     * @param config  A CameraConfig object (from com.openipc.pixelpilot).
-     *                The JNI layer reads all fields via reflection.
-     * @param surface Optional preview Surface, or null for headless.
+     * @param videoConfig A CameraConfig object.
+     * @param audioConfig An AudioConfig object.
+     * @param surface     Optional preview Surface, or null for headless.
      */
-    public static native void nativeStartStreaming(Object config, Surface surface);
+    public static native void nativeStartStreaming(Object videoConfig, Object audioConfig, Surface surface);
 
     /**
      * Stop and release all native resources.

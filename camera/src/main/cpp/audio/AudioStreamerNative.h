@@ -8,12 +8,28 @@
 #include <mutex>
 #include <netinet/in.h>
 
+struct NativeAudioConfig {
+    int sampleRate;
+    int channels;
+    int inputPreset;
+    int performanceMode;
+    int sharingMode;
+    int format;
+    int bitrate;
+    int complexity;
+    int application;
+    int frameSizeMs;
+    bool enableFec;
+    bool enableDtx;
+    int vbrMode;
+};
+
 class AudioStreamerNative : public oboe::AudioStreamCallback {
 public:
     AudioStreamerNative();
     ~AudioStreamerNative();
 
-    bool start();
+    bool start(const NativeAudioConfig& config);
     void stop();
 
     // oboe::AudioStreamCallback interface returns data
@@ -21,15 +37,11 @@ public:
 
 private:
     std::shared_ptr<oboe::AudioStream> mStream;
-    OpusEncoder *mOpusEncoder = nullptr;
-    int mUdpSocket = -1;
+
     struct sockaddr_in mDestAddr;
 
-    // Opus prefers specific frame sizes: at 48kHz, 10ms is 480 samples.
-    // 20ms is 960 samples. We'll use 20ms chunks.
-    static constexpr int SAMPLE_RATE = 48000;
-    static constexpr int CHANNELS = 1;
-    static constexpr int FRAME_SIZE_SAMPLES = 960; // 20ms
+    NativeAudioConfig mConfig;
+    int mFrameSizeSamples;
     
     std::vector<int16_t> mPcmBuffer;
     std::mutex mBufferMutex;

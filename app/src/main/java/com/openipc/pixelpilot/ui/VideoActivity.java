@@ -136,6 +136,7 @@ public class VideoActivity extends AppCompatActivity implements
     };
     private CameraHelper cameraHelper;
     private CameraConfig cameraConfig;
+    private AudioConfig audioConfig;
     private static final int PERMISSIONS_REQUEST_CODE = 100;
 
     private static final String PREF_DRONE_USERNAME = "drone_username";
@@ -356,9 +357,10 @@ public class VideoActivity extends AppCompatActivity implements
         public void surfaceCreated(@NonNull android.view.SurfaceHolder holder) {
             if (checkPermissions()) {
                 if (cameraConfig == null) cameraConfig = CameraConfig.load(VideoActivity.this);
+                if (audioConfig == null) audioConfig = AudioConfig.load(VideoActivity.this);
                 if (vtxService != null) {
                     Surface previewSurface = binding.btnPreviewToggle.isChecked() ? holder.getSurface() : null;
-                    vtxService.getEngine().startNativeCamera(cameraConfig, previewSurface);
+                    vtxService.getEngine().startNativeCamera(cameraConfig, audioConfig, previewSurface);
                 }
             }
         }
@@ -379,8 +381,9 @@ public class VideoActivity extends AppCompatActivity implements
             // If the surface was already created before binding finished, start it now
             if (binding.mainVideo.getHolder().getSurface().isValid() && checkPermissions()) {
                 if (cameraConfig == null) cameraConfig = CameraConfig.load(this);
+                if (audioConfig == null) audioConfig = AudioConfig.load(this);
                 Surface previewSurface = binding.btnPreviewToggle.isChecked() ? binding.mainVideo.getHolder().getSurface() : null;
-                vtxService.getEngine().startNativeCamera(cameraConfig, previewSurface);
+                vtxService.getEngine().startNativeCamera(cameraConfig, audioConfig, previewSurface);
             }
         }
     }
@@ -389,6 +392,7 @@ public class VideoActivity extends AppCompatActivity implements
         binding.mainVideo.setVisibility(View.VISIBLE);
         if (cameraHelper == null) cameraHelper = new CameraHelper(this);
         if (cameraConfig == null) cameraConfig = CameraConfig.load(this);
+        if (audioConfig == null) audioConfig = AudioConfig.load(this);
         binding.mainVideo.getHolder().removeCallback(surfaceCallback);
         binding.mainVideo.getHolder().addCallback(surfaceCallback);
     }
@@ -471,10 +475,11 @@ public class VideoActivity extends AppCompatActivity implements
         if (!isStreamRunning(this)) return;
         if (vtxService == null || !binding.mainVideo.getHolder().getSurface().isValid()) return;
         if (cameraConfig == null) cameraConfig = CameraConfig.load(this);
+        if (audioConfig == null) audioConfig = AudioConfig.load(this);
         if (vtxService != null) {
             vtxService.getEngine().stopNativeCamera();
             Surface previewSurface = binding.btnPreviewToggle.isChecked() ? binding.mainVideo.getHolder().getSurface() : null;
-            vtxService.getEngine().startNativeCamera(cameraConfig, previewSurface);
+            vtxService.getEngine().startNativeCamera(cameraConfig, audioConfig, previewSurface);
         }
     }
 

@@ -1,0 +1,19 @@
+{
+  "oboe": {
+    "sampleRate": 48000,
+    "channels": 1,
+    "inputPreset": 5,
+    "performanceMode": 12,
+    "sharingMode": 0,
+    "format": 1
+  },
+  "opus": {
+    "bitrate": 64000,
+    "complexity": 5,
+    "application": 2051,
+    "frameSizeMs": 20,
+    "enableFec": false,
+    "enableDtx": false,
+    "vbrMode": 0
+  }
+}
