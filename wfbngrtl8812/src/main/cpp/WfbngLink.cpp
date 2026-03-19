@@ -132,6 +132,9 @@ int WfbngLink::run(JNIEnv *env, jobject context, jint wifiChannel, jint bw, jint
         return -1;
     }
 
+    // Create TxDispatcher — owns the USB handle + mutex for all TX threads
+    txDispatcher_ = std::make_unique<TxDispatcher>(dev_handle, log);
+
     uint8_t *video_channel_id_be8 = reinterpret_cast<uint8_t *>(&video_channel_id_be);
     uint8_t *udp_channel_id_be8 = reinterpret_cast<uint8_t *>(&udp_channel_id_be);
     uint8_t *mavlink_channel_id_be8 = reinterpret_cast<uint8_t *>(&mavlink_channel_id_be);
@@ -238,11 +241,11 @@ int WfbngLink::run(JNIEnv *env, jobject context, jint wifiChannel, jint bw, jint
                 ANDROID_LOG_INFO, TAG, "TX: link_id=%d radio_port=%d fec=%d/%d vtx=%d",
                 args->link_id, args->radio_port, args->k, args->n, vtxMode_);
 
-            Rtl8812aDevice *current_device = rtl_devices.at(fd).get();
+            TxDispatcher *txDisp = txDispatcher_.get();
             if (!usb_tx_thread) {
                 init_thread(usb_tx_thread, [&]() {
-                    return std::make_unique<std::thread>([this, current_device, args] {
-                        txFrame->run(current_device, args.get());
+                    return std::make_unique<std::thread>([this, txDisp, args] {
+                        txFrame->run(txDisp, args.get());
                         __android_log_print(ANDROID_LOG_DEBUG, TAG, "usb_transfer thread should terminate");
                     });
                 });
@@ -269,8 +272,8 @@ int WfbngLink::run(JNIEnv *env, jobject context, jint wifiChannel, jint bw, jint
                     tunnelArgs->link_id, tunnelArgs->radio_port, tunnelArgs->k, tunnelArgs->n);
 
                 init_thread(usb_tunnel_tx_thread, [&]() {
-                    return std::make_unique<std::thread>([this, current_device, tunnelArgs] {
-                        tunnelTxFrame->run(current_device, tunnelArgs.get());
+                    return std::make_unique<std::thread>([this, txDisp, tunnelArgs] {
+                        tunnelTxFrame->run(txDisp, tunnelArgs.get());
                         __android_log_print(ANDROID_LOG_DEBUG, TAG, "tunnel_tx thread should terminate");
                     });
                 });
@@ -298,8 +301,8 @@ int WfbngLink::run(JNIEnv *env, jobject context, jint wifiChannel, jint bw, jint
                     telemetryArgs->k, telemetryArgs->n, telemetryArgs->udp_port);
 
                 init_thread(usb_telemetry_tx_thread, [&]() {
-                    return std::make_unique<std::thread>([this, current_device, telemetryArgs] {
-                        telemetryTxFrame->run(current_device, telemetryArgs.get());
+                    return std::make_unique<std::thread>([this, txDisp, telemetryArgs] {
+                        telemetryTxFrame->run(txDisp, telemetryArgs.get());
                         __android_log_print(ANDROID_LOG_DEBUG, TAG, "telemetry_tx thread should terminate");
                     });
                 });
@@ -316,12 +319,13 @@ int WfbngLink::run(JNIEnv *env, jobject context, jint wifiChannel, jint bw, jint
         }
 
         auto bandWidth = (bw == 20 ? CHANNEL_WIDTH_20 : CHANNEL_WIDTH_40);
-        rtl_devices.at(fd)->Init(packetProcessor,
-                                 SelectedChannel{
-                                     .Channel = static_cast<uint8_t>(wifiChannel),
-                                     .ChannelOffset = 0,
-                                     .ChannelWidth = bandWidth,
-                                 });
+        SelectedChannel selectedChannel{
+            .Channel = static_cast<uint8_t>(wifiChannel),
+            .ChannelOffset = 0,
+            .ChannelWidth = bandWidth,
+        };
+        txDispatcher_->setChannel(selectedChannel);
+        rtl_devices.at(fd)->Init(packetProcessor, selectedChannel);
     } catch (const std::runtime_error &error) {
         __android_log_print(ANDROID_LOG_ERROR, TAG, "runtime_error: %s", error.what());
         auto dev = rtl_devices.at(fd).get();

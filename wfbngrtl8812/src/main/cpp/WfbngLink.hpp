@@ -3,6 +3,7 @@
 
 #include "FecChangeController.h"
 #include "SignalQualityCalculator.h"
+#include "TxDispatcher.h"
 #include "TxFrame.h"
 
 extern "C" {
@@ -101,6 +102,7 @@ class WfbngLink {
     uint32_t udp_channel_id_be;
 
     Logger_t log;
+    std::unique_ptr<TxDispatcher> txDispatcher_;
     std::unique_ptr<std::thread> usb_event_thread{nullptr};
     std::unique_ptr<std::thread> usb_tx_thread{nullptr};
     std::unique_ptr<std::thread> usb_tunnel_tx_thread{nullptr};

@@ -6,7 +6,7 @@ extern "C" {
 #include "wfb-ng/src/zfex.h" // FEC library
 }
 
-#include "devourer/src/Rtl8812aDevice.h" // Rtl8812aDevice definition
+#include "TxDispatcher.h"               // TxDispatcher for USB TX
 #include "wfb-ng/src/wifibroadcast.hpp"  // Wifibroadcast definitions
 
 // -- System / C++ Includes --
@@ -300,7 +300,7 @@ class UsbTransmitter : public Transmitter {
                    uint8_t *radiotapHeader,
                    size_t radiotapHeaderLen,
                    uint8_t frameType,
-                   Rtl8812aDevice *device);
+                   TxDispatcher *dispatcher);
 
     ~UsbTransmitter() override = default;
 
@@ -320,7 +320,7 @@ class UsbTransmitter : public Transmitter {
     uint8_t *radiotapHeader_;
     size_t radiotapHeaderLen_;
     uint8_t frameType_;
-    Rtl8812aDevice *rtlDevice_;
+    TxDispatcher *txDispatcher_;
 };
 
 //-------------------------------------------------------------
@@ -388,7 +388,7 @@ class TxFrame {
      * @param rtlDevice The Rtl8812aDevice pointer (if using USB).
      * @param arg TxArgs structure with user parameters.
      */
-    void run(Rtl8812aDevice *rtlDevice, TxArgs *arg);
+    void run(TxDispatcher *dispatcher, TxArgs *arg);
 
     /**
      * @brief Signals that the main loop should stop.

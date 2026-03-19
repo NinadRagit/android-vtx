@@ -9,3 +9,6 @@
 [submodule "app/camera/src/main/cpp/opus"]
 	path = camera/src/main/cpp/opus
 	url = https://github.com/xiph/opus.git
+[submodule "wfbngrtl8812/src/main/cpp/devourer"]
+	path = wfbngrtl8812/src/main/cpp/devourer
+	url = https://github.com/OpenIPC/devourer.git

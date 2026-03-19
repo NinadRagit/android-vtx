@@ -3,7 +3,6 @@
 #include "sodium/crypto_aead_chacha20poly1305.h"
 #include "sodium/crypto_box.h"
 #include "sodium/randombytes.h"
-#include "src/Rtl8812aDevice.h"
 #include "src/wifibroadcast.hpp"
 #include "src/zfex.h"
 
@@ -423,10 +422,10 @@ UsbTransmitter::UsbTransmitter(int k,
                                uint8_t *radiotapHeader,
                                size_t radiotapHeaderLen,
                                uint8_t frameType,
-                               Rtl8812aDevice *device)
+                               TxDispatcher *dispatcher)
         : Transmitter(k, n, keypair, epoch, channelId), channelId_(channelId), currentOutput_(0), ieee80211Sequence_(0),
           radiotapHeader_(radiotapHeader), radiotapHeaderLen_(radiotapHeaderLen), frameType_(frameType),
-          rtlDevice_(device) {
+          txDispatcher_(dispatcher) {
     (void)wlans; // Not used directly here
 }
 
@@ -468,13 +467,6 @@ void UsbTransmitter::dumpStats(
 }
 
 void UsbTransmitter::injectPacket(const uint8_t *buf, size_t size) {
-    if (!rtlDevice_ || rtlDevice_->should_stop) {
-#ifdef __ANDROID__
-        __android_log_print(ANDROID_LOG_DEBUG, TAG, "Main thread exited, cannot send packets");
-#endif
-        throw std::runtime_error("USB Transmitter: main thread exit, should stop");
-    }
-
     if (size > MAX_FORWARDER_PACKET_SIZE) {
         throw std::runtime_error("UsbTransmitter::injectPacket - packet too large");
     }
@@ -494,7 +486,7 @@ void UsbTransmitter::injectPacket(const uint8_t *buf, size_t size) {
 
     uint64_t startUs = get_time_us();
 
-    // Merge into one contiguous buffer
+    // Merge into one contiguous buffer: radiotap + ieee80211 + payload
     size_t totalSize = radiotapHeaderLen_ + sizeof(ieeeHdr) + size;
     std::unique_ptr<uint8_t[]> buffer(new uint8_t[totalSize]);
 
@@ -502,16 +494,8 @@ void UsbTransmitter::injectPacket(const uint8_t *buf, size_t size) {
     std::memcpy(buffer.get() + radiotapHeaderLen_, ieeeHdr, sizeof(ieeeHdr));
     std::memcpy(buffer.get() + radiotapHeaderLen_ + sizeof(ieeeHdr), buf, size);
 
-    // Retry logic matching OpenIPC's -J 10 -E 5000 (10 retries, 5ms delay)
-    bool result = false;
-    for (int attempt = 0; attempt <= TX_INJECT_MAX_RETRIES; ++attempt) {
-        result = static_cast<bool>(rtlDevice_->send_packet(buffer.get(), totalSize));
-        if (result) break;
-        if (attempt < TX_INJECT_MAX_RETRIES) {
-            std::this_thread::sleep_for(std::chrono::microseconds(TX_INJECT_RETRY_DELAY_US));
-        }
-    }
-
+    // TxDispatcher handles radiotap parsing, TX descriptor, USB transfer, and retry
+    bool result = txDispatcher_->send_packet(buffer.get(), totalSize);
 
     uint64_t key = (static_cast<uint64_t>(currentOutput_) << 8) | 0xff;
     antennaStat_[key].logLatency(get_time_us() - startUs, result, static_cast<uint32_t>(size));
@@ -841,7 +825,7 @@ void TxFrame::dataSource(
     }
 }
 
-void TxFrame::run(Rtl8812aDevice *rtlDevice, TxArgs *arg) {
+void TxFrame::run(TxDispatcher *dispatcher, TxArgs *arg) {
     // Decide if using VHT
     if (arg->bandwidth >= 80) {
         arg->vht_mode = true;
@@ -998,7 +982,7 @@ void TxFrame::run(Rtl8812aDevice *rtlDevice, TxArgs *arg) {
                                                            rtHeader.get(),
                                                            rtHeaderLen,
                                                            frameType,
-                                                           rtlDevice);
+                                                           dispatcher);
         }
 
         // Start polling loop
